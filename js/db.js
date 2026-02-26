@@ -1,8 +1,20 @@
 // ============================================================
-// db.js — localStorage-based data layer
+// db.js — Supabase-based data layer (cache-based approach)
 // ============================================================
+// Strategia: manteniamo una cache in-memory.
+// DB.init() carica tutto da Supabase alla startup.
+// Ogni write aggiorna Supabase + la cache locale.
+// Le funzioni di lettura (getStudents, load, ecc.) sono SINCRONE
+// e leggono dalla cache → risk.js e app.js non richiedono async.
+// Solo le funzioni di SCRITTURA sono async.
+// ============================================================
+
 const DB = (() => {
-  const STORAGE_KEY = 'interrogation_tracker';
+
+  let _client = null;
+  let _cache = null;
+
+  // ---- helpers ----
 
   function formatDateISO(date = new Date()) {
     const year = date.getFullYear();
@@ -11,313 +23,442 @@ const DB = (() => {
     return `${year}-${month}-${day}`;
   }
 
-  function _defaultData() {
+  function _defaultCache() {
     return {
       students: [],
       subjects: [],
       teachers: [],
-      schedule: [],       // { id, subjectId, dayOfWeek (1=Mon..5=Fri), hours }
-      interrogations: [], // { id, studentId, subjectId, date, grade }
-      absences: [],       // { id, studentId, date, subjectId (null=full day) }
-      volunteers: [],     // { id, studentId, subjectId, date }
-      vacations: [],      // { id, date, note }
+      schedule: [],
+      interrogations: [],
+      absences: [],
+      volunteers: [],
+      vacations: [],
       config: {
-        avgInterrogationsPerSubjectPerDay: {}, // subjectId -> number
+        avgInterrogationsPerSubjectPerDay: {},
         schoolDays: 5,
-        cycleThreshold: 80, // X%: when I >= X% of N, oldest R students re-enter pool
-        cycleReturn: 2      // R: number of students returning per cycle
-      },
-      nextId: 1
+        cycleThreshold: 80,
+        cycleReturn: 2
+      }
     };
   }
 
-  function load() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return _defaultData();
-      const d = JSON.parse(raw);
-      // ensure all keys exist
-      const def = _defaultData();
-      for (const k of Object.keys(def)) {
-        if (!(k in d)) d[k] = def[k];
+  // ---- row mappers (snake_case DB → camelCase app) ----
+
+  function mapSubject(r) {
+    return { id: r.id, name: r.name, teacherId: r.teacher_id };
+  }
+  function mapSchedule(r) {
+    return { id: r.id, subjectId: r.subject_id, dayOfWeek: r.day_of_week, hours: r.hours };
+  }
+  function mapInterrogation(r) {
+    return { id: r.id, studentId: r.student_id, subjectId: r.subject_id, date: r.date, grade: r.grade };
+  }
+  function mapAbsence(r) {
+    return { id: r.id, studentId: r.student_id, subjectId: r.subject_id, date: r.date };
+  }
+  function mapVolunteer(r) {
+    return { id: r.id, studentId: r.student_id, subjectId: r.subject_id, date: r.date };
+  }
+
+  // ---- DB init & load ----
+
+  async function init(url, key) {
+    _client = supabase.createClient(url, key);
+    await _loadAll();
+  }
+
+  async function _loadAll() {
+    const [
+      studRes, subjRes, teachRes, schedRes,
+      interrogRes, absRes, volRes, vacRes,
+      cfgRes, avgRes
+    ] = await Promise.all([
+      _client.from('students').select('*'),
+      _client.from('subjects').select('*'),
+      _client.from('teachers').select('*'),
+      _client.from('schedule').select('*'),
+      _client.from('interrogations').select('*'),
+      _client.from('absences').select('*'),
+      _client.from('volunteers').select('*'),
+      _client.from('vacations').select('*'),
+      _client.from('config').select('*').eq('id', 1).single(),
+      _client.from('subject_avg').select('*')
+    ]);
+
+    const cfg = cfgRes.data || {};
+    const avgMap = {};
+    (avgRes.data || []).forEach(r => { avgMap[r.subject_id] = r.avg_per_day; });
+
+    _cache = {
+      students: (studRes.data || []),
+      subjects: (subjRes.data || []).map(mapSubject),
+      teachers: (teachRes.data || []),
+      schedule: (schedRes.data || []).map(mapSchedule),
+      interrogations: (interrogRes.data || []).map(mapInterrogation),
+      absences: (absRes.data || []).map(mapAbsence),
+      volunteers: (volRes.data || []).map(mapVolunteer),
+      vacations: (vacRes.data || []),
+      config: {
+        schoolDays: cfg.school_days ?? 5,
+        cycleThreshold: cfg.cycle_threshold ?? 80,
+        cycleReturn: cfg.cycle_return ?? 2,
+        avgInterrogationsPerSubjectPerDay: avgMap
       }
-      if (!d.config) d.config = def.config;
-      if (!d.config.schoolDays) d.config.schoolDays = 5;
-      if (d.config.cycleThreshold == null) d.config.cycleThreshold = 80;
-      if (d.config.cycleReturn == null) d.config.cycleReturn = 2;
-      if (!d.config.avgInterrogationsPerSubjectPerDay) d.config.avgInterrogationsPerSubjectPerDay = {};
-      return d;
-    } catch {
-      return _defaultData();
-    }
+    };
   }
 
-  function save(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }
-
-  function genId(data) {
-    return data.nextId++;
+  // Synchronous read of the full cache (used by risk.js)
+  function load() {
+    return _cache || _defaultCache();
   }
 
   // ---- Students ----
-  function getStudents() { return load().students; }
-  function getStudent(id) { return load().students.find(s => s.id === id) || null; }
-  function addStudent(s) {
-    const d = load();
-    s.id = genId(d);
-    d.students.push(s);
-    save(d);
-    return s;
+
+  function getStudents() { return (_cache || _defaultCache()).students; }
+  function getStudent(id) { return getStudents().find(s => s.id === id) || null; }
+
+  async function addStudent(s) {
+    const { data, error } = await _client
+      .from('students').insert({ name: s.name, image: s.image || null }).select().single();
+    if (error) return { error: error.message };
+    _cache.students.push(data);
+    return data;
   }
-  function updateStudent(id, updates) {
-    const d = load();
-    const idx = d.students.findIndex(s => s.id === id);
-    if (idx === -1) return null;
-    Object.assign(d.students[idx], updates);
-    save(d);
-    return d.students[idx];
+
+  async function updateStudent(id, updates) {
+    const { data, error } = await _client
+      .from('students').update(updates).eq('id', id).select().single();
+    if (error) return null;
+    const idx = _cache.students.findIndex(s => s.id === id);
+    if (idx !== -1) _cache.students[idx] = data;
+    return data;
   }
-  function deleteStudent(id) {
-    const d = load();
-    d.students = d.students.filter(s => s.id !== id);
-    d.interrogations = d.interrogations.filter(i => i.studentId !== id);
-    d.absences = d.absences.filter(a => a.studentId !== id);
-    d.volunteers = d.volunteers.filter(v => v.studentId !== id);
-    save(d);
+
+  async function deleteStudent(id) {
+    await _client.from('students').delete().eq('id', id);
+    _cache.students = _cache.students.filter(s => s.id !== id);
+    _cache.interrogations = _cache.interrogations.filter(i => i.studentId !== id);
+    _cache.absences = _cache.absences.filter(a => a.studentId !== id);
+    _cache.volunteers = _cache.volunteers.filter(v => v.studentId !== id);
   }
 
   // ---- Subjects ----
-  function getSubjects() { return load().subjects; }
-  function getSubject(id) { return load().subjects.find(s => s.id === id) || null; }
-  function addSubject(s) {
-    const d = load();
-    s.id = genId(d);
-    d.subjects.push(s);
-    save(d);
-    return s;
+
+  function getSubjects() { return (_cache || _defaultCache()).subjects; }
+  function getSubject(id) { return getSubjects().find(s => s.id === id) || null; }
+
+  async function addSubject(s) {
+    const { data, error } = await _client
+      .from('subjects')
+      .insert({ name: s.name, teacher_id: s.teacherId || null })
+      .select().single();
+    if (error) return { error: error.message };
+    const mapped = mapSubject(data);
+    _cache.subjects.push(mapped);
+    return mapped;
   }
-  function updateSubject(id, updates) {
-    const d = load();
-    const idx = d.subjects.findIndex(s => s.id === id);
-    if (idx === -1) return null;
-    Object.assign(d.subjects[idx], updates);
-    save(d);
-    return d.subjects[idx];
+
+  async function updateSubject(id, updates) {
+    const dbUpdates = {};
+    if (updates.name !== undefined) dbUpdates.name = updates.name;
+    if (updates.teacherId !== undefined) dbUpdates.teacher_id = updates.teacherId;
+    const { data, error } = await _client
+      .from('subjects').update(dbUpdates).eq('id', id).select().single();
+    if (error) return null;
+    const mapped = mapSubject(data);
+    const idx = _cache.subjects.findIndex(s => s.id === id);
+    if (idx !== -1) _cache.subjects[idx] = mapped;
+    return mapped;
   }
-  function deleteSubject(id) {
-    const d = load();
-    d.subjects = d.subjects.filter(s => s.id !== id);
-    d.schedule = d.schedule.filter(sc => sc.subjectId !== id);
-    d.interrogations = d.interrogations.filter(i => i.subjectId !== id);
-    d.absences = d.absences.filter(a => a.subjectId !== id);
-    d.volunteers = d.volunteers.filter(v => v.subjectId !== id);
-    delete d.config.avgInterrogationsPerSubjectPerDay[id];
-    save(d);
+
+  async function deleteSubject(id) {
+    await _client.from('subjects').delete().eq('id', id);
+    _cache.subjects = _cache.subjects.filter(s => s.id !== id);
+    _cache.schedule = _cache.schedule.filter(sc => sc.subjectId !== id);
+    _cache.interrogations = _cache.interrogations.filter(i => i.subjectId !== id);
+    _cache.absences = _cache.absences.filter(a => a.subjectId !== id);
+    _cache.volunteers = _cache.volunteers.filter(v => v.subjectId !== id);
+    delete _cache.config.avgInterrogationsPerSubjectPerDay[id];
   }
 
   // ---- Teachers ----
-  function getTeachers() { return load().teachers; }
-  function getTeacher(id) { return load().teachers.find(t => t.id === id) || null; }
-  function addTeacher(t) {
-    const d = load();
-    t.id = genId(d);
-    d.teachers.push(t);
-    save(d);
-    return t;
+
+  function getTeachers() { return (_cache || _defaultCache()).teachers; }
+  function getTeacher(id) { return getTeachers().find(t => t.id === id) || null; }
+
+  async function addTeacher(t) {
+    const { data, error } = await _client
+      .from('teachers').insert({ name: t.name }).select().single();
+    if (error) return { error: error.message };
+    _cache.teachers.push(data);
+    return data;
   }
-  function updateTeacher(id, updates) {
-    const d = load();
-    const idx = d.teachers.findIndex(t => t.id === id);
-    if (idx === -1) return null;
-    Object.assign(d.teachers[idx], updates);
-    save(d);
-    return d.teachers[idx];
+
+  async function updateTeacher(id, updates) {
+    const { data, error } = await _client
+      .from('teachers').update({ name: updates.name }).eq('id', id).select().single();
+    if (error) return null;
+    const idx = _cache.teachers.findIndex(t => t.id === id);
+    if (idx !== -1) _cache.teachers[idx] = data;
+    return data;
   }
-  function deleteTeacher(id) {
-    const d = load();
-    d.teachers = d.teachers.filter(t => t.id !== id);
-    // remove teacher assignment from subjects
-    d.subjects.forEach(s => { if (s.teacherId === id) s.teacherId = null; });
-    save(d);
+
+  async function deleteTeacher(id) {
+    await _client.from('teachers').delete().eq('id', id);
+    _cache.teachers = _cache.teachers.filter(t => t.id !== id);
+    _cache.subjects.forEach(s => { if (s.teacherId === id) s.teacherId = null; });
   }
 
   // ---- Schedule ----
-  function getSchedule() { return load().schedule; }
-  function addScheduleEntry(entry) {
-    const d = load();
-    entry.id = genId(d);
-    d.schedule.push(entry);
-    save(d);
-    return entry;
+
+  function getSchedule() { return (_cache || _defaultCache()).schedule; }
+
+  async function addScheduleEntry(entry) {
+    const { data, error } = await _client
+      .from('schedule')
+      .insert({ subject_id: entry.subjectId, day_of_week: entry.dayOfWeek, hours: entry.hours })
+      .select().single();
+    if (error) return { error: error.message };
+    const mapped = mapSchedule(data);
+    _cache.schedule.push(mapped);
+    return mapped;
   }
-  function deleteScheduleEntry(id) {
-    const d = load();
-    d.schedule = d.schedule.filter(s => s.id !== id);
-    save(d);
+
+  async function deleteScheduleEntry(id) {
+    await _client.from('schedule').delete().eq('id', id);
+    _cache.schedule = _cache.schedule.filter(s => s.id !== id);
   }
-  function clearSchedule() {
-    const d = load();
-    d.schedule = [];
-    save(d);
+
+  async function clearSchedule() {
+    await _client.from('schedule').delete().neq('id', 0);
+    _cache.schedule = [];
   }
 
   // ---- Interrogations ----
-  function getInterrogations() { return load().interrogations; }
-  function addInterrogation(entry) {
-    const d = load();
-    // Validation: no duplicate same day + subject + student
-    const dup = d.interrogations.find(i =>
+
+  function getInterrogations() { return (_cache || _defaultCache()).interrogations; }
+
+  async function addInterrogation(entry) {
+    const data = _cache || _defaultCache();
+    // Validation: no duplicate
+    if (data.interrogations.find(i =>
       i.studentId === entry.studentId &&
       i.subjectId === entry.subjectId &&
       i.date === entry.date
-    );
-    if (dup) return { error: 'Duplicate interrogation for same day and subject' };
-    // Validation: no interrogation on vacation day
-    if (d.vacations.some(v => v.date === entry.date))
+    )) return { error: 'Duplicate interrogation for same day and subject' };
+    // Validation: no vacation
+    if (data.vacations.some(v => v.date === entry.date))
       return { error: 'Cannot add interrogation on a vacation day' };
-    // Validation: conflict with absence on same day for same subject or full day
-    const absConflict = d.absences.find(a =>
+    // Validation: absence conflict
+    if (data.absences.find(a =>
       a.studentId === entry.studentId &&
       a.date === entry.date &&
       (a.subjectId === null || a.subjectId === entry.subjectId)
-    );
-    if (absConflict) return { error: 'Student is absent on this day/subject' };
+    )) return { error: 'Student is absent on this day/subject' };
 
-    entry.id = genId(d);
-    d.interrogations.push(entry);
-    save(d);
-    return entry;
+    const { data: row, error } = await _client
+      .from('interrogations')
+      .insert({
+        student_id: entry.studentId,
+        subject_id: entry.subjectId,
+        date: entry.date,
+        grade: entry.grade ?? null
+      }).select().single();
+    if (error) return { error: error.message };
+    const mapped = mapInterrogation(row);
+    _cache.interrogations.push(mapped);
+    return mapped;
   }
-  function updateInterrogation(id, updates) {
-    const d = load();
-    const idx = d.interrogations.findIndex(i => i.id === id);
-    if (idx === -1) return null;
-    Object.assign(d.interrogations[idx], updates);
-    save(d);
-    return d.interrogations[idx];
+
+  async function updateInterrogation(id, updates) {
+    const { data, error } = await _client
+      .from('interrogations').update({ grade: updates.grade }).eq('id', id).select().single();
+    if (error) return null;
+    const mapped = mapInterrogation(data);
+    const idx = _cache.interrogations.findIndex(i => i.id === id);
+    if (idx !== -1) _cache.interrogations[idx] = mapped;
+    return mapped;
   }
-  function deleteInterrogation(id) {
-    const d = load();
-    d.interrogations = d.interrogations.filter(i => i.id !== id);
-    save(d);
+
+  async function deleteInterrogation(id) {
+    await _client.from('interrogations').delete().eq('id', id);
+    _cache.interrogations = _cache.interrogations.filter(i => i.id !== id);
   }
 
   // ---- Absences ----
-  function getAbsences() { return load().absences; }
-  function addAbsence(entry) {
-    const d = load();
-    entry.id = genId(d);
-    d.absences.push(entry);
-    save(d);
-    return entry;
+
+  function getAbsences() { return (_cache || _defaultCache()).absences; }
+
+  async function addAbsence(entry) {
+    const { data, error } = await _client
+      .from('absences')
+      .insert({
+        student_id: entry.studentId,
+        date: entry.date,
+        subject_id: entry.subjectId ?? null
+      }).select().single();
+    if (error) return { error: error.message };
+    const mapped = mapAbsence(data);
+    _cache.absences.push(mapped);
+    return mapped;
   }
-  function updateAbsence(id, updates) {
-    const d = load();
-    const idx = d.absences.findIndex(a => a.id === id);
-    if (idx === -1) return null;
-    Object.assign(d.absences[idx], updates);
-    save(d);
-    return d.absences[idx];
-  }
-  function deleteAbsence(id) {
-    const d = load();
-    d.absences = d.absences.filter(a => a.id !== id);
-    save(d);
+
+  async function deleteAbsence(id) {
+    await _client.from('absences').delete().eq('id', id);
+    _cache.absences = _cache.absences.filter(a => a.id !== id);
   }
 
   // ---- Volunteers ----
-  function getVolunteers() { return load().volunteers; }
-  function addVolunteer(entry) {
-    const d = load();
-    // Validation: cannot volunteer if already interrogated for that subject on that date
-    const alreadyDone = d.interrogations.find(i =>
+
+  function getVolunteers() { return (_cache || _defaultCache()).volunteers; }
+
+  async function addVolunteer(entry) {
+    const data = _cache || _defaultCache();
+    // Validation: already interrogated
+    if (data.interrogations.find(i =>
       i.studentId === entry.studentId &&
       i.subjectId === entry.subjectId &&
       i.date === entry.date
-    );
-    if (alreadyDone) return { error: 'Already interrogated in this subject on this date' };
-    // Check duplicate volunteer
-    const dup = d.volunteers.find(v =>
+    )) return { error: 'Already interrogated in this subject on this date' };
+    // Duplicate volunteer
+    if (data.volunteers.find(v =>
       v.studentId === entry.studentId &&
       v.subjectId === entry.subjectId &&
       v.date === entry.date
-    );
-    if (dup) return { error: 'Already volunteered for this subject on this date' };
-    entry.id = genId(d);
-    d.volunteers.push(entry);
-    save(d);
-    return entry;
+    )) return { error: 'Already volunteered for this subject on this date' };
+
+    const { data: row, error } = await _client
+      .from('volunteers')
+      .insert({
+        student_id: entry.studentId,
+        subject_id: entry.subjectId,
+        date: entry.date
+      }).select().single();
+    if (error) return { error: error.message };
+    const mapped = mapVolunteer(row);
+    _cache.volunteers.push(mapped);
+    return mapped;
   }
-  function deleteVolunteer(id) {
-    const d = load();
-    d.volunteers = d.volunteers.filter(v => v.id !== id);
-    save(d);
+
+  async function deleteVolunteer(id) {
+    await _client.from('volunteers').delete().eq('id', id);
+    _cache.volunteers = _cache.volunteers.filter(v => v.id !== id);
   }
 
   // ---- Vacations ----
-  function getVacations() { return load().vacations; }
-  function addVacation(entry) {
-    const d = load();
-    if (d.vacations.some(v => v.date === entry.date))
+
+  function getVacations() { return (_cache || _defaultCache()).vacations; }
+
+  async function addVacation(entry) {
+    const data = _cache || _defaultCache();
+    if (data.vacations.some(v => v.date === entry.date))
       return { error: 'Vacation already exists for this date' };
-    entry.id = genId(d);
-    d.vacations.push(entry);
-    save(d);
-    return entry;
+    const { data: row, error } = await _client
+      .from('vacations').insert({ date: entry.date, note: entry.note || null }).select().single();
+    if (error) return { error: error.message };
+    _cache.vacations.push(row);
+    return row;
   }
-  function deleteVacation(id) {
-    const d = load();
-    d.vacations = d.vacations.filter(v => v.id !== id);
-    save(d);
+
+  async function deleteVacation(id) {
+    await _client.from('vacations').delete().eq('id', id);
+    _cache.vacations = _cache.vacations.filter(v => v.id !== id);
   }
 
   // ---- Config ----
-  function getConfig() { return load().config; }
-  function setAvgInterrogations(subjectId, avg) {
-    const d = load();
-    d.config.avgInterrogationsPerSubjectPerDay[subjectId] = avg;
-    save(d);
+
+  function getConfig() { return (_cache || _defaultCache()).config; }
+
+  async function setAvgInterrogations(subjectId, avg) {
+    await _client.from('subject_avg').upsert({ subject_id: subjectId, avg_per_day: avg });
+    _cache.config.avgInterrogationsPerSubjectPerDay[subjectId] = avg;
   }
 
-  function setSchoolDays(days) {
-    const d = load();
-    d.config.schoolDays = days;
-    save(d);
+  async function setSchoolDays(days) {
+    await _client.from('config').update({ school_days: days }).eq('id', 1);
+    _cache.config.schoolDays = days;
   }
 
-  function setCycleConfig(threshold, returnCount) {
-    const d = load();
-    d.config.cycleThreshold = threshold;
-    d.config.cycleReturn = returnCount;
-    save(d);
+  async function setCycleConfig(threshold, returnCount) {
+    await _client.from('config').update({ cycle_threshold: threshold, cycle_return: returnCount }).eq('id', 1);
+    _cache.config.cycleThreshold = threshold;
+    _cache.config.cycleReturn = returnCount;
   }
 
   // ---- Reset ----
-  function resetAll() {
-    localStorage.removeItem(STORAGE_KEY);
+
+  async function resetAll() {
+    // Delete in dependency order
+    await Promise.all([
+      _client.from('interrogations').delete().neq('id', 0),
+      _client.from('absences').delete().neq('id', 0),
+      _client.from('volunteers').delete().neq('id', 0),
+    ]);
+    await Promise.all([
+      _client.from('vacations').delete().neq('id', 0),
+      _client.from('schedule').delete().neq('id', 0),
+      _client.from('subject_avg').delete().neq('subject_id', 0),
+    ]);
+    await _client.from('subjects').delete().neq('id', 0);
+    await _client.from('students').delete().neq('id', 0);
+    await _client.from('teachers').delete().neq('id', 0);
+    await _client.from('config').update({
+      school_days: 5, cycle_threshold: 80, cycle_return: 2
+    }).eq('id', 1);
+    _cache = _defaultCache();
   }
-  function resetSelective(entity) {
-    const d = load();
-    if (entity === 'students') { d.students = []; d.interrogations = []; d.absences = []; d.volunteers = []; }
-    else if (entity === 'subjects') { d.subjects = []; d.schedule = []; d.interrogations = []; d.absences = []; d.volunteers = []; d.config.avgInterrogationsPerSubjectPerDay = {}; }
-    else if (entity === 'teachers') { d.teachers = []; d.subjects.forEach(s => s.teacherId = null); }
-    else if (entity === 'interrogations') { d.interrogations = []; }
-    else if (entity === 'absences') { d.absences = []; }
-    else if (entity === 'volunteers') { d.volunteers = []; }
-    else if (entity === 'vacations') { d.vacations = []; }
-    else if (entity === 'schedule') { d.schedule = []; }
-    save(d);
+
+  async function resetSelective(entity) {
+    if (entity === 'students') {
+      await Promise.all([
+        _client.from('interrogations').delete().neq('id', 0),
+        _client.from('absences').delete().neq('id', 0),
+        _client.from('volunteers').delete().neq('id', 0),
+      ]);
+      await _client.from('students').delete().neq('id', 0);
+      _cache.students = []; _cache.interrogations = []; _cache.absences = []; _cache.volunteers = [];
+    } else if (entity === 'subjects') {
+      await Promise.all([
+        _client.from('interrogations').delete().neq('id', 0),
+        _client.from('absences').delete().neq('id', 0),
+        _client.from('volunteers').delete().neq('id', 0),
+        _client.from('schedule').delete().neq('id', 0),
+        _client.from('subject_avg').delete().neq('subject_id', 0),
+      ]);
+      await _client.from('subjects').delete().neq('id', 0);
+      _cache.subjects = []; _cache.schedule = []; _cache.interrogations = [];
+      _cache.absences = []; _cache.volunteers = [];
+      _cache.config.avgInterrogationsPerSubjectPerDay = {};
+    } else if (entity === 'teachers') {
+      await _client.from('teachers').delete().neq('id', 0);
+      _cache.teachers = [];
+      _cache.subjects.forEach(s => s.teacherId = null);
+    } else if (entity === 'interrogations') {
+      await _client.from('interrogations').delete().neq('id', 0);
+      _cache.interrogations = [];
+    } else if (entity === 'absences') {
+      await _client.from('absences').delete().neq('id', 0);
+      _cache.absences = [];
+    } else if (entity === 'volunteers') {
+      await _client.from('volunteers').delete().neq('id', 0);
+      _cache.volunteers = [];
+    } else if (entity === 'vacations') {
+      await _client.from('vacations').delete().neq('id', 0);
+      _cache.vacations = [];
+    } else if (entity === 'schedule') {
+      await _client.from('schedule').delete().neq('id', 0);
+      _cache.schedule = [];
+    }
   }
 
   return {
-    formatDateISO,
-    load, save, getStudents, getStudent, addStudent, updateStudent, deleteStudent,
+    formatDateISO, load, init,
+    getStudents, getStudent, addStudent, updateStudent, deleteStudent,
     getSubjects, getSubject, addSubject, updateSubject, deleteSubject,
     getTeachers, getTeacher, addTeacher, updateTeacher, deleteTeacher,
     getSchedule, addScheduleEntry, deleteScheduleEntry, clearSchedule,
     getInterrogations, addInterrogation, updateInterrogation, deleteInterrogation,
-    getAbsences, addAbsence, updateAbsence, deleteAbsence,
+    getAbsences, addAbsence, deleteAbsence,
     getVolunteers, addVolunteer, deleteVolunteer,
     getVacations, addVacation, deleteVacation,
     getConfig, setAvgInterrogations, setSchoolDays, setCycleConfig,

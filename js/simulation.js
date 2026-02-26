@@ -1,5 +1,5 @@
 // ============================================================
-// simulation.js — Random data generator for testing
+// simulation.js — Random data generator for testing (async)
 // ============================================================
 const Simulation = (() => {
 
@@ -48,53 +48,55 @@ const Simulation = (() => {
         return a;
     }
 
-    function generateStudents(count = 25) {
+    async function generateStudents(count = 25) {
         const names = new Set();
         const students = [];
         while (students.length < count) {
             const name = pick(FIRST_NAMES) + ' ' + pick(LAST_NAMES);
             if (names.has(name)) continue;
             names.add(name);
-            students.push(DB.addStudent({ name, image: null }));
+            const s = await DB.addStudent({ name, image: null });
+            if (!s.error) students.push(s);
         }
         return students;
     }
 
-    function generateTeachers(count = 8) {
+    async function generateTeachers(count = 8) {
         const names = new Set();
         const teachers = [];
         while (teachers.length < count) {
             const name = 'Prof. ' + pick(TEACHER_FIRST) + ' ' + pick(LAST_NAMES);
             if (names.has(name)) continue;
             names.add(name);
-            teachers.push(DB.addTeacher({ name }));
+            const t = await DB.addTeacher({ name });
+            if (!t.error) teachers.push(t);
         }
         return teachers;
     }
 
-    function generateSubjects(count = 8, teachers = null) {
+    async function generateSubjects(count = 8, teachers = null) {
         if (!teachers) teachers = DB.getTeachers();
         const subjectNames = shuffle(SUBJECT_NAMES).slice(0, count);
         const subjects = [];
         for (const name of subjectNames) {
             const teacher = pick(teachers);
-            const subj = DB.addSubject({ name, teacherId: teacher.id });
-            // Set avg interrogations: 1–3
-            DB.setAvgInterrogations(subj.id, randInt(1, 3));
-            subjects.push(subj);
+            const subj = await DB.addSubject({ name, teacherId: teacher.id });
+            if (!subj.error) {
+                await DB.setAvgInterrogations(subj.id, randInt(1, 3));
+                subjects.push(subj);
+            }
         }
         return subjects;
     }
 
-    function generateSchedule(subjects = null) {
+    async function generateSchedule(subjects = null) {
         if (!subjects) subjects = DB.getSubjects();
         const config = DB.getConfig();
         const schoolDays = config.schoolDays || 5;
-        // For each weekday, assign 4–6 subjects
         for (let day = 1; day <= schoolDays; day++) {
             const daySubjects = shuffle(subjects).slice(0, randInt(4, Math.min(6, subjects.length)));
             for (const subj of daySubjects) {
-                DB.addScheduleEntry({
+                await DB.addScheduleEntry({
                     subjectId: subj.id,
                     dayOfWeek: day,
                     hours: randInt(1, 3)
@@ -103,11 +105,10 @@ const Simulation = (() => {
         }
     }
 
-    function generateHistoricalData(daysBack = 30) {
+    async function generateHistoricalData(daysBack = 30) {
         const students = DB.getStudents();
         const subjects = DB.getSubjects();
         const schedule = DB.getSchedule();
-        const data = DB.load();
 
         if (students.length === 0 || subjects.length === 0) return;
 
@@ -121,12 +122,11 @@ const Simulation = (() => {
             const config = DB.getConfig();
             const schoolDays = config.schoolDays || 5;
 
-            // Skip weekends based on config
             if (dow > schoolDays) continue;
 
             // 10% chance of vacation day
             if (Math.random() < 0.1) {
-                DB.addVacation({ date: dateStr, note: 'Holiday' });
+                await DB.addVacation({ date: dateStr, note: 'Holiday' });
                 continue;
             }
 
@@ -136,63 +136,60 @@ const Simulation = (() => {
                 .map(s => subjects.find(sub => sub.id === s.subjectId))
                 .filter(Boolean);
 
-            // Generate absences (10% of students per day)
+            // Generate absences (up to 15% of students)
             const absentCount = Math.max(0, randInt(0, Math.floor(students.length * 0.15)));
             const absentStudents = shuffle(students).slice(0, absentCount);
             for (const student of absentStudents) {
                 if (Math.random() < 0.6) {
-                    // Full day absence
-                    DB.addAbsence({ studentId: student.id, date: dateStr, subjectId: null });
+                    await DB.addAbsence({ studentId: student.id, date: dateStr, subjectId: null });
                 } else {
-                    // Subject-specific absence
                     if (daySubjects.length > 0) {
-                        DB.addAbsence({ studentId: student.id, date: dateStr, subjectId: pick(daySubjects).id });
+                        await DB.addAbsence({ studentId: student.id, date: dateStr, subjectId: pick(daySubjects).id });
                     }
                 }
             }
 
-            // Generate volunteers (1–2 per subject, 30% chance)
+            // Generate volunteers (1 per subject, 30% chance)
             for (const subj of daySubjects) {
                 if (Math.random() < 0.3) {
                     const nonAbsent = students.filter(s => !absentStudents.includes(s));
                     if (nonAbsent.length > 0) {
                         const vol = pick(nonAbsent);
-                        DB.addVolunteer({ studentId: vol.id, subjectId: subj.id, date: dateStr });
+                        await DB.addVolunteer({ studentId: vol.id, subjectId: subj.id, date: dateStr });
                     }
                 }
             }
 
             // Generate interrogations
             for (const subj of daySubjects) {
-                const avg = data.config.avgInterrogationsPerSubjectPerDay[subj.id] || 1;
+                const avg = DB.getConfig().avgInterrogationsPerSubjectPerDay[subj.id] || 1;
                 const count = randInt(Math.max(1, avg - 1), avg + 1);
 
-                // Prioritize students not already interrogated in the last X days to vary data
                 let eligible = students.filter(s => !absentStudents.includes(s));
-
-                // Simple heuristic for simulation: prefer those with fewer interrogations in this subject
+                // Prefer students with fewer interrogations in this subject
+                const currentInterrogs = DB.getInterrogations();
                 eligible.sort((a, b) => {
-                    const countA = DB.getInterrogations().filter(i => i.studentId === a.id && i.subjectId === subj.id).length;
-                    const countB = DB.getInterrogations().filter(i => i.studentId === b.id && i.subjectId === subj.id).length;
-                    return countA - countB + (Math.random() - 0.5); // Add some noise
+                    const cA = currentInterrogs.filter(i => i.studentId === a.id && i.subjectId === subj.id).length;
+                    const cB = currentInterrogs.filter(i => i.studentId === b.id && i.subjectId === subj.id).length;
+                    return cA - cB + (Math.random() - 0.5);
                 });
 
                 const selected = eligible.slice(0, Math.min(count, eligible.length));
                 for (const student of selected) {
                     const grade = randInt(2, 10);
-                    DB.addInterrogation({ studentId: student.id, subjectId: subj.id, date: dateStr, grade });
+                    await DB.addInterrogation({ studentId: student.id, subjectId: subj.id, date: dateStr, grade });
                 }
             }
         }
     }
 
-    function generateAll() {
-        DB.resetAll();
-        const teachers = generateTeachers(8);
-        const subjects = generateSubjects(8, teachers);
-        const students = generateStudents(25);
-        generateSchedule(subjects);
-        generateHistoricalData(30);
+    async function generateAll(studentCount = 25, subjectCount = 8, teacherCount = 8, daysBack = 30) {
+        await DB.resetAll();
+        const teachers = await generateTeachers(teacherCount);
+        const subjects = await generateSubjects(subjectCount, teachers);
+        const students = await generateStudents(studentCount);
+        await generateSchedule(subjects);
+        await generateHistoricalData(daysBack);
         return { students: students.length, subjects: subjects.length, teachers: teachers.length };
     }
 

@@ -86,7 +86,9 @@
     </main>
   </div>
 
-  <!-- Scripts (order matters: db → risk → simulation → app) -->
+  <!-- Scripts (order matters: supabase → config → db → risk → simulation → app) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
   <script src="js/db.js"></script>
   <script src="js/risk.js"></script>
   <script src="js/simulation.js"></script>

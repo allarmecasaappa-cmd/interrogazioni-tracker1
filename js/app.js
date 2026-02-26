@@ -7,7 +7,18 @@ const App = (() => {
   let dashboardMode = 'daily'; // 'daily' | 'weekly'
   let selectedDate = RiskCalculator.getNextSchoolDay(DB.formatDateISO());
 
-  function init() {
+  async function init() {
+    // Show loading indicator while connecting to Supabase
+    const main = document.getElementById('main-content');
+    if (main) main.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#8E99A4;"><p>Connessione al database...</p></div>';
+
+    try {
+      await DB.init(SUPABASE_URL, SUPABASE_ANON_KEY);
+    } catch (e) {
+      if (main) main.innerHTML = `<div style="text-align:center;padding:60px 20px;color:#FF3B30;"><h3>Errore di connessione</h3><p>${e.message}</p><p>Verifica i valori in js/config.js</p></div>`;
+      return;
+    }
+
     // Try to restore selected student
     const savedId = localStorage.getItem('selectedStudentId');
     if (savedId) currentStudentId = parseInt(savedId);
@@ -411,7 +422,7 @@ const App = (() => {
     `;
     mainCol.appendChild(interrogCard);
 
-    interrogCard.querySelector('#interrog-form').addEventListener('submit', (e) => {
+    interrogCard.querySelector('#interrog-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
       const data = {
@@ -420,7 +431,7 @@ const App = (() => {
         date: form.date.value,
         grade: form.grade.value ? parseFloat(form.grade.value) : null
       };
-      const result = DB.addInterrogation(data);
+      const result = await DB.addInterrogation(data);
       const msg = interrogCard.querySelector('#interrog-msg');
       if (result.error) {
         msg.className = 'form-message error';
@@ -473,7 +484,7 @@ const App = (() => {
     `;
     sideCol.appendChild(secondaryCard);
 
-    secondaryCard.querySelector('#secondary-form').addEventListener('submit', (e) => {
+    secondaryCard.querySelector('#secondary-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
       const weekDates = RiskCalculator.getWeekDates(selectedDate);
@@ -484,7 +495,7 @@ const App = (() => {
 
       let result;
       if (actionType === 'absence') {
-        result = DB.addAbsence({
+        result = await DB.addAbsence({
           studentId: currentStudentId,
           date: targetDate,
           subjectId: subjectId
@@ -493,7 +504,7 @@ const App = (() => {
         if (subjectId === null) {
           result = { error: 'Seleziona una materia specifica per il volontario' };
         } else {
-          result = DB.addVolunteer({
+          result = await DB.addVolunteer({
             studentId: currentStudentId,
             subjectId: subjectId,
             date: targetDate
@@ -639,7 +650,7 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#save-cycle-btn').addEventListener('click', () => {
+    container.querySelector('#save-cycle-btn').addEventListener('click', async () => {
       const threshold = parseInt(container.querySelector('#cycle-threshold').value);
       const returnCount = parseInt(container.querySelector('#cycle-return').value);
       if (isNaN(threshold) || isNaN(returnCount) || threshold < 1 || returnCount < 1) {
@@ -648,21 +659,21 @@ const App = (() => {
         msg.textContent = 'Valori non validi.';
         return;
       }
-      DB.setCycleConfig(threshold, returnCount);
+      await DB.setCycleConfig(threshold, returnCount);
       const msg = container.querySelector('#cycle-msg');
       msg.className = 'form-message success';
       msg.textContent = `Ciclo aggiornato: ${threshold}% / ${returnCount} studenti.`;
     });
 
-    container.querySelector('#add-student-form').addEventListener('submit', (e) => {
+    container.querySelector('#add-student-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      DB.addStudent({ name: e.target.name.value, image: null });
+      await DB.addStudent({ name: e.target.name.value, image: null });
       renderAdminStudents(container);
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         if (confirm(`Eliminare questo studente?`)) {
-          DB.deleteStudent(parseInt(btn.dataset.delete));
+          await DB.deleteStudent(parseInt(btn.dataset.delete));
           renderAdminStudents(container);
         }
       });
@@ -706,24 +717,24 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#add-subject-form').addEventListener('submit', (e) => {
+    container.querySelector('#add-subject-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const subj = DB.addSubject({
+      const subj = await DB.addSubject({
         name: e.target.name.value,
         teacherId: e.target.teacherId.value ? parseInt(e.target.teacherId.value) : null
       });
-      DB.setAvgInterrogations(subj.id, 1);
+      await DB.setAvgInterrogations(subj.id, 1);
       renderAdminSubjects(container);
     });
     container.querySelectorAll('.avg-input').forEach(inp => {
-      inp.addEventListener('change', () => {
-        DB.setAvgInterrogations(parseInt(inp.dataset.subject), parseInt(inp.value) || 1);
+      inp.addEventListener('change', async () => {
+        await DB.setAvgInterrogations(parseInt(inp.dataset.subject), parseInt(inp.value) || 1);
       });
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         if (confirm(`Delete subject and all related data?`)) {
-          DB.deleteSubject(parseInt(btn.dataset.delete));
+          await DB.deleteSubject(parseInt(btn.dataset.delete));
           renderAdminSubjects(container);
         }
       });
@@ -750,15 +761,15 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#add-teacher-form').addEventListener('submit', (e) => {
+    container.querySelector('#add-teacher-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      DB.addTeacher({ name: e.target.name.value });
+      await DB.addTeacher({ name: e.target.name.value });
       renderAdminTeachers(container);
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         if (confirm(`Delete teacher?`)) {
-          DB.deleteTeacher(parseInt(btn.dataset.delete));
+          await DB.deleteTeacher(parseInt(btn.dataset.delete));
           renderAdminTeachers(container);
         }
       });
@@ -819,14 +830,14 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#setting-school-days').addEventListener('change', (e) => {
-      DB.setSchoolDays(parseInt(e.target.value));
+    container.querySelector('#setting-school-days').addEventListener('change', async (e) => {
+      await DB.setSchoolDays(parseInt(e.target.value));
       renderAdminSchedule(container);
     });
 
-    container.querySelector('#add-schedule-form').addEventListener('submit', (e) => {
+    container.querySelector('#add-schedule-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      DB.addScheduleEntry({
+      await DB.addScheduleEntry({
         subjectId: parseInt(e.target.subjectId.value),
         dayOfWeek: parseInt(e.target.dayOfWeek.value),
         hours: parseInt(e.target.hours.value) || 1
@@ -834,8 +845,8 @@ const App = (() => {
       renderAdminSchedule(container);
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        DB.deleteScheduleEntry(parseInt(btn.dataset.delete));
+      btn.addEventListener('click', async () => {
+        await DB.deleteScheduleEntry(parseInt(btn.dataset.delete));
         renderAdminSchedule(container);
       });
     });
@@ -863,15 +874,15 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#add-vacation-form').addEventListener('submit', (e) => {
+    container.querySelector('#add-vacation-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const result = DB.addVacation({ date: e.target.date.value, note: e.target.note.value });
+      const result = await DB.addVacation({ date: e.target.date.value, note: e.target.note.value });
       if (result.error) alert(result.error);
       renderAdminVacations(container);
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        DB.deleteVacation(parseInt(btn.dataset.delete));
+      btn.addEventListener('click', async () => {
+        await DB.deleteVacation(parseInt(btn.dataset.delete));
         renderAdminVacations(container);
       });
     });
@@ -915,10 +926,10 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#add-interrog-form').addEventListener('submit', (e) => {
+    container.querySelector('#add-interrog-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
-      const result = DB.addInterrogation({
+      const result = await DB.addInterrogation({
         studentId: parseInt(form.studentId.value),
         subjectId: parseInt(form.subjectId.value),
         date: form.date.value,
@@ -935,8 +946,8 @@ const App = (() => {
       }
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        DB.deleteInterrogation(parseInt(btn.dataset.delete));
+      btn.addEventListener('click', async () => {
+        await DB.deleteInterrogation(parseInt(btn.dataset.delete));
         renderAdminInterrogations(container);
       });
     });
@@ -978,9 +989,9 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#add-absence-admin-form').addEventListener('submit', (e) => {
+    container.querySelector('#add-absence-admin-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      DB.addAbsence({
+      await DB.addAbsence({
         studentId: parseInt(e.target.studentId.value),
         date: e.target.date.value,
         subjectId: e.target.subjectId.value ? parseInt(e.target.subjectId.value) : null
@@ -988,8 +999,8 @@ const App = (() => {
       renderAdminAbsences(container);
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        DB.deleteAbsence(parseInt(btn.dataset.delete));
+      btn.addEventListener('click', async () => {
+        await DB.deleteAbsence(parseInt(btn.dataset.delete));
         renderAdminAbsences(container);
       });
     });
@@ -1032,9 +1043,9 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#add-volunteer-admin-form').addEventListener('submit', (e) => {
+    container.querySelector('#add-volunteer-admin-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const result = DB.addVolunteer({
+      const result = await DB.addVolunteer({
         studentId: parseInt(e.target.studentId.value),
         subjectId: parseInt(e.target.subjectId.value),
         date: e.target.date.value
@@ -1048,8 +1059,8 @@ const App = (() => {
       }
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        DB.deleteVolunteer(parseInt(btn.dataset.delete));
+      btn.addEventListener('click', async () => {
+        await DB.deleteVolunteer(parseInt(btn.dataset.delete));
         renderAdminVolunteers(container);
       });
     });
@@ -1083,26 +1094,30 @@ const App = (() => {
       </div>
     `;
 
-    container.querySelector('#sim-run').addEventListener('click', () => {
+    container.querySelector('#sim-run').addEventListener('click', async () => {
       if (!confirm('This will DELETE all existing data and generate new random data. Continue?')) return;
       const btn = container.querySelector('#sim-run');
       btn.disabled = true;
-      btn.textContent = 'Generating...';
+      btn.textContent = 'Generando dati... (attendere)';
+      const msg = container.querySelector('#sim-msg');
+      msg.className = 'form-message';
+      msg.textContent = 'Operazione in corso, potrebbe richiedere 20-60 secondi...';
 
-      setTimeout(() => {
-        DB.resetAll();
-        const teachers = Simulation.generateTeachers(parseInt(container.querySelector('#sim-teachers').value));
-        const subjects = Simulation.generateSubjects(parseInt(container.querySelector('#sim-subjects').value), teachers);
-        const students = Simulation.generateStudents(parseInt(container.querySelector('#sim-students').value));
-        Simulation.generateSchedule(subjects);
-        Simulation.generateHistoricalData(parseInt(container.querySelector('#sim-days').value));
-
-        const msg = container.querySelector('#sim-msg');
+      try {
+        const result = await Simulation.generateAll(
+          parseInt(container.querySelector('#sim-students').value),
+          parseInt(container.querySelector('#sim-subjects').value),
+          parseInt(container.querySelector('#sim-teachers').value),
+          parseInt(container.querySelector('#sim-days').value)
+        );
         msg.className = 'form-message success';
-        msg.textContent = `Generated: ${students.length} students, ${subjects.length} subjects, ${teachers.length} teachers with ${container.querySelector('#sim-days').value} days of history.`;
-        btn.disabled = false;
-        btn.textContent = 'Generate Simulation Data';
-      }, 100);
+        msg.textContent = `Generati: ${result.students} studenti, ${result.subjects} materie, ${result.teachers} professori con ${container.querySelector('#sim-days').value} giorni di storico.`;
+      } catch (e) {
+        msg.className = 'form-message error';
+        msg.textContent = 'Errore durante la generazione: ' + e.message;
+      }
+      btn.disabled = false;
+      btn.textContent = 'Generate Simulation Data';
     });
   }
 
@@ -1129,12 +1144,13 @@ const App = (() => {
     `;
 
     container.querySelectorAll('[data-reset]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const entity = btn.dataset.reset;
         if (confirm(`Delete all ${entity}?`)) {
-          DB.resetSelective(entity);
-          btn.textContent = `${entity} cleared`;
           btn.disabled = true;
+          btn.textContent = 'Cancellando...';
+          await DB.resetSelective(entity);
+          btn.textContent = `${entity} cleared`;
           setTimeout(() => {
             btn.textContent = `Reset ${entity}`;
             btn.disabled = false;
@@ -1143,10 +1159,10 @@ const App = (() => {
       });
     });
 
-    container.querySelector('#reset-all-btn').addEventListener('click', () => {
+    container.querySelector('#reset-all-btn').addEventListener('click', async () => {
       if (!confirm('Are you sure you want to reset the ENTIRE database?')) return;
       if (!confirm('This is your FINAL confirmation. All data will be permanently deleted. Proceed?')) return;
-      DB.resetAll();
+      await DB.resetAll();
       alert('Database has been reset.');
       location.hash = 'admin';
       renderAdmin(document.getElementById('main-content'));
