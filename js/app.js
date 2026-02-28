@@ -862,6 +862,7 @@ const App = (() => {
   }
 
   function renderAdminStudents(container) {
+    const session = DB.getSession();
     const students = RiskCalculator.sortBySurname(DB.getStudents());
     const config = DB.getConfig();
     container.innerHTML = `
@@ -899,7 +900,7 @@ const App = (() => {
             <div class="admin-list-item" data-id="${s.id}">
               <div class="admin-item-info">
                 <span class="admin-item-name">${s.lastName} ${s.firstName}</span>
-                <span class="admin-item-extra">Pass: <strong>${s.password || '1234'}</strong> | ID: ${s.id}</span>
+                <span class="admin-item-extra">Classe: <strong>${s.classId}</strong> | Pass: <strong>${s.password || '1234'}</strong> | ID: ${s.id}</span>
                 ${session.user.role === 'admin' ? `
                   <div class="admin-capo-toggle">
                     <label style="font-size: 11px; cursor: pointer;">

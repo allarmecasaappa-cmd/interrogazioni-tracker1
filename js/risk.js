@@ -292,8 +292,14 @@ const RiskCalculator = (() => {
 
     function sortBySurname(array, nameProp = 'name') {
         return [...array].sort((a, b) => {
-            const nameA = typeof a === 'string' ? a : a[nameProp];
-            const nameB = typeof b === 'string' ? b : b[nameProp];
+            if (a && b && a.lastName !== undefined && b.lastName !== undefined) {
+                const cmp = a.lastName.toLowerCase().localeCompare(b.lastName.toLowerCase());
+                if (cmp !== 0) return cmp;
+                return (a.firstName || '').toLowerCase().localeCompare((b.firstName || '').toLowerCase());
+            }
+
+            const nameA = typeof a === 'string' ? a : (a[nameProp] || '');
+            const nameB = typeof b === 'string' ? b : (b[nameProp] || '');
             const surnameA = nameA.split(' ').pop().toLowerCase();
             const surnameB = nameB.split(' ').pop().toLowerCase();
             return surnameA.localeCompare(surnameB);
