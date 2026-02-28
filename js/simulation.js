@@ -52,10 +52,19 @@ const Simulation = (() => {
         const names = new Set();
         const students = [];
         while (students.length < count) {
-            const name = pick(FIRST_NAMES) + ' ' + pick(LAST_NAMES);
-            if (names.has(name)) continue;
-            names.add(name);
-            const s = await DB.addStudent({ name, image: null });
+            const first = pick(FIRST_NAMES);
+            const last = pick(LAST_NAMES);
+            const fullName = `${last} ${first}`;
+
+            if (names.has(fullName)) continue;
+            names.add(fullName);
+
+            const s = await DB.addStudent({
+                firstName: first,
+                lastName: last,
+                password: randInt(1000, 9999).toString(),
+                image: null
+            });
             if (!s.error) students.push(s);
         }
         return students;
@@ -183,14 +192,34 @@ const Simulation = (() => {
         }
     }
 
-    async function generateAll(studentCount = 25, subjectCount = 8, teacherCount = 8, daysBack = 30) {
-        await DB.resetAll();
+    async function generateAll(studentCount = 25, subjectCount = 8, teacherCount = 8, daysBack = 30, className = null) {
+        if (className) {
+            const newClass = await DB.addClass(className);
+            if (newClass.error) throw new Error(newClass.error);
+            await DB.setClassId(newClass.id);
+            localStorage.setItem('currentClassId', newClass.id);
+        }
+
+        // We only reset the current class data, not the whole system
+        const currentClass = DB.getCurrentClassId();
+        await DB.resetSelective('students');
+        await DB.resetSelective('subjects');
+        await DB.resetSelective('teachers');
+        await DB.resetSelective('schedule');
+        await DB.resetSelective('vacations');
+
         const teachers = await generateTeachers(teacherCount);
         const subjects = await generateSubjects(subjectCount, teachers);
         const students = await generateStudents(studentCount);
         await generateSchedule(subjects);
         await generateHistoricalData(daysBack);
-        return { students: students.length, subjects: subjects.length, teachers: teachers.length };
+
+        return {
+            classId: DB.getCurrentClassId(),
+            students: students.length,
+            subjects: subjects.length,
+            teachers: teachers.length
+        };
     }
 
     return { generateStudents, generateTeachers, generateSubjects, generateSchedule, generateHistoricalData, generateAll };

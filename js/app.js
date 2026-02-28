@@ -12,30 +12,57 @@ const App = (() => {
     const main = document.getElementById('main-content');
     if (main) main.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#8E99A4;"><p>Connessione al database...</p></div>';
 
+    // Initialize class from localStorage
+    const savedClassId = localStorage.getItem('currentClassId') || 'Classe-1';
+
     try {
-      await DB.init(SUPABASE_URL, SUPABASE_ANON_KEY);
+      await DB.init(SUPABASE_URL, SUPABASE_ANON_KEY, savedClassId);
     } catch (e) {
       if (main) main.innerHTML = `<div style="text-align:center;padding:60px 20px;color:#FF3B30;"><h3>Errore di connessione</h3><p>${e.message}</p><p>Verifica i valori in js/config.js</p></div>`;
       return;
     }
 
-    // Try to restore selected student
-    const savedId = localStorage.getItem('selectedStudentId');
-    if (savedId) currentStudentId = parseInt(savedId);
+    // Recover session
+    const session = DB.getSession();
+    if (session.isLoggedIn) {
+      currentStudentId = session.user.role === 'student' ? session.user.id : (parseInt(localStorage.getItem('selectedStudentId')) || null);
+    }
 
     window.addEventListener('hashchange', handleRoute);
     handleRoute();
   }
 
   function handleRoute() {
+    const session = DB.getSession();
+    const main = document.getElementById('main-content');
+
+    // Auth Guard
+    if (!session.isLoggedIn) {
+      renderLogin(main);
+      return;
+    }
+
     const hash = location.hash.slice(1) || 'dashboard';
     const parts = hash.split('/');
     const route = parts[0];
 
+    // Student Restrictions
+    if (session.user.role === 'student') {
+      if (['admin'].includes(route)) {
+        location.hash = 'dashboard';
+        return;
+      }
+      // Students only see themselves
+      currentStudentId = session.user.id;
+    }
+
     document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(el => el.classList.remove('active'));
     document.querySelectorAll(`[data-route="${route}"]`).forEach(el => el.classList.add('active'));
 
-    const main = document.getElementById('main-content');
+    // Hide/Show Admin nav item based on role
+    const adminNav = document.querySelectorAll('[data-route="admin"]');
+    adminNav.forEach(el => el.style.display = session.user.role === 'admin' ? 'block' : 'none');
+
     main.innerHTML = '';
 
     switch (route) {
@@ -59,63 +86,202 @@ const App = (() => {
     }
   }
 
-  // ---- Student Selector ----
-  function renderStudentSelector(container, onChange) {
-    const students = DB.getStudents();
-    if (students.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">
-            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#B0B8C1" stroke-width="1.5">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
+  // ---- Login View ----
+  function renderLogin(container) {
+    container.innerHTML = `
+      <div class="login-container">
+        <div class="card login-card">
+          <div class="login-header">
+            <div class="login-logo">🕒</div>
+            <h2>Bentornato</h2>
+            <p>Accedi per gestire le tue interrogazioni</p>
           </div>
-          <h3>No students configured</h3>
-          <p>Go to the Admin panel to add students or generate simulation data.</p>
-          <a href="#admin" class="btn btn-primary">Open Admin Panel</a>
-        </div>`;
-      return false;
-    }
-
-    // Auto-select if not set
-    if (!currentStudentId || !students.find(s => s.id === currentStudentId)) {
-      currentStudentId = students[0].id;
-      localStorage.setItem('selectedStudentId', currentStudentId);
-    }
-
-    const student = students.find(s => s.id === currentStudentId);
-    const initials = RiskCalculator.getInitials(student.name);
-
-    const header = document.createElement('div');
-    header.className = 'student-header';
-    header.innerHTML = `
-      <div class="profile-circle" style="background: ${getColorForName(student.name)}">${initials}</div>
-      <div class="student-header-info">
-        <select id="student-select" class="student-select">
-          ${students.map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
-        </select>
-        <div class="date-picker-row">
-          <input type="date" id="date-select" class="date-input" value="${selectedDate}">
+          <form id="login-form">
+            <div class="form-group">
+              <label>Nome Utente (Cognome Nome)</label>
+              <input type="text" id="login-username" placeholder="es. Rossi Mario" required autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label>Password (4 caratteri)</label>
+              <input type="password" id="login-password" placeholder="••••" required autocomplete="current-password" maxlength="10">
+            </div>
+            <div id="login-error" class="form-message error" style="display:none;"></div>
+            <button type="submit" class="btn btn-primary btn-full">Accedi</button>
+          </form>
+          <div class="login-footer">
+            <p>Sei un nuovo studente? Chiedi le credenziali al tuo docente.</p>
+          </div>
         </div>
       </div>
     `;
-    container.appendChild(header);
 
-    header.querySelector('#student-select').addEventListener('change', (e) => {
-      currentStudentId = parseInt(e.target.value);
-      localStorage.setItem('selectedStudentId', currentStudentId);
-      if (onChange) onChange();
-      else handleRoute();
-    });
+    container.querySelector('#login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = e.target['login-username'].value.trim();
+      const password = e.target['login-password'].value.trim();
+      const btn = e.target.querySelector('button');
+      const errorDiv = container.querySelector('#login-error');
 
-    header.querySelector('#date-select').addEventListener('change', (e) => {
-      selectedDate = e.target.value;
-      if (onChange) onChange();
-      else handleRoute();
+      btn.disabled = true;
+      btn.textContent = 'Verifica...';
+      errorDiv.style.display = 'none';
+
+      const res = await DB.login(username, password);
+      if (res.error) {
+        errorDiv.textContent = res.error;
+        errorDiv.style.display = 'block';
+        btn.disabled = false;
+        btn.textContent = 'Accedi';
+      } else {
+        handleRoute();
+      }
     });
+  }
+
+  // ---- Class Selector UI ----
+  function updateClassSelectorUI() {
+    const session = DB.getSession();
+    let selector = document.getElementById('global-class-selector');
+
+    // Students and Class Admins don't see the class selector
+    if (session.user && (session.user.role === 'student' || session.user.role === 'class_admin')) {
+      if (selector) selector.remove();
+      return;
+    }
+    if (!selector) {
+      selector = document.createElement('select');
+      selector.id = 'global-class-selector';
+      selector.className = 'class-selector';
+
+      const header = document.querySelector('.mobile-header');
+      if (header) {
+        header.appendChild(selector);
+      } else {
+        document.body.appendChild(selector); // Fallback
+      }
+
+      selector.addEventListener('change', async (e) => {
+        const newClass = e.target.value;
+        localStorage.setItem('currentClassId', newClass);
+        // Also clear student selection as it might not be valid in the new class
+        localStorage.removeItem('selectedStudentId');
+        currentStudentId = null;
+
+        const main = document.getElementById('main-content');
+        if (main) main.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#8E99A4;"><p>Caricamento classe...</p></div>';
+
+        await DB.setClassId(newClass);
+        handleRoute();
+      });
+    }
+
+    // Populate options from DB
+    const currentClass = DB.getCurrentClassId();
+    const classes = DB.getClasses();
+
+    // Fallback if empty (should never happen if DB is initialized properly)
+    if (classes.length === 0) {
+      classes.push({ id: currentClass });
+    }
+
+    selector.innerHTML = classes.map(c => {
+      const val = c.id;
+      return `<option value="${val}" ${currentClass === val ? 'selected' : ''}>${val}</option>`;
+    }).join('');
+  }
+
+  // ---- Student Selector ----
+  function renderStudentSelector(container, onChange) {
+    const session = DB.getSession();
+
+    // Students don't see the selector (they are fixed)
+    if (session.user.role === 'student') {
+      const student = DB.getStudent(session.user.id);
+      if (!student) return false;
+
+      const header = document.createElement('div');
+      header.className = 'student-header student-view-only';
+      header.innerHTML = `
+        <div class="profile-circle" style="background: ${getColorForName(student.name)}">${RiskCalculator.getInitials(student.name)}</div>
+        <div class="student-header-info">
+          <div class="student-name-display">${student.name}</div>
+          <div class="student-class-display">${DB.getCurrentClassId()}</div>
+        </div>
+        <button class="btn-logout-icon" title="Esci">🚪</button>
+      `;
+      container.appendChild(header);
+
+      header.querySelector('.btn-logout-icon').addEventListener('click', () => {
+        if (confirm('Vuoi uscire?')) DB.logout();
+      });
+
+      return true;
+    }
+
+    // Auto-select if not set
+    if (session.user.role === 'admin') {
+      const students = DB.getStudents();
+      if (students.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">
+              <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#B0B8C1" stroke-width="1.5">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+              </svg>
+            </div>
+            <h3>No students configured</h3>
+            <p>Go to the Admin panel to add students or generate simulation data.</p>
+            <a href="#admin" class="btn btn-primary">Open Admin Panel</a>
+          </div>`;
+        return false;
+      }
+      if (!currentStudentId || !students.find(s => s.id === currentStudentId)) {
+        currentStudentId = students[0].id;
+        localStorage.setItem('selectedStudentId', currentStudentId);
+      }
+
+      const student = students.find(s => s.id === currentStudentId);
+      const initials = RiskCalculator.getInitials(student.name);
+
+      const header = document.createElement('div');
+      header.className = 'student-header';
+      header.innerHTML = `
+        <div class="profile-circle" style="background: ${getColorForName(student.name)}">${initials}</div>
+        <div class="student-header-info">
+          <div class="student-header-top-row">
+            <select id="student-select" class="student-select">
+              ${students.map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
+            </select>
+            <div class="student-class-display admin-header-class">${DB.getCurrentClassId()}</div>
+          </div>
+          <div class="date-picker-row">
+            <input type="date" id="date-select" class="date-input" value="${selectedDate}">
+          </div>
+        </div>
+        <button class="btn-logout-icon" title="Esci">🚪</button>
+      `;
+      container.appendChild(header);
+
+      header.querySelector('#student-select').addEventListener('change', (e) => {
+        currentStudentId = parseInt(e.target.value);
+        localStorage.setItem('selectedStudentId', currentStudentId);
+        if (onChange) onChange();
+        else handleRoute();
+      });
+
+      header.querySelector('#date-select').addEventListener('change', (e) => {
+        selectedDate = e.target.value;
+        if (onChange) onChange();
+        else handleRoute();
+      });
+
+      header.querySelector('.btn-logout-icon').addEventListener('click', () => {
+        if (confirm('Vuoi uscire?')) DB.logout();
+      });
+    }
 
     return true;
   }
@@ -123,6 +289,7 @@ const App = (() => {
   // ---- Dashboard ----
   function renderDashboard(container) {
     container.innerHTML = '';
+    updateClassSelectorUI();
 
     if (!renderStudentSelector(container, () => renderDashboard(container))) return;
 
@@ -130,7 +297,7 @@ const App = (() => {
     const toggle = document.createElement('div');
     toggle.className = 'toggle-bar';
     toggle.innerHTML = `
-      <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily">MATERIE (Domani)</button>
+      <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily" > MATERIE(Domani)</button>
       <button class="toggle-btn ${dashboardMode === 'weekly' ? 'active' : ''}" data-mode="weekly">Calendario</button>
     `;
     container.appendChild(toggle);
@@ -157,7 +324,7 @@ const App = (() => {
       empty.innerHTML = `
         <h3>No subjects found</h3>
         <p>Go to the Admin panel to add subjects.</p>
-      `;
+`;
       container.appendChild(empty);
       return;
     }
@@ -189,11 +356,11 @@ const App = (() => {
       dayCol.className = 'week-day-column';
       const isToday = date === DB.formatDateISO();
 
-      dayCol.innerHTML = `<div class="week-day-header ${isToday ? 'today' : ''}">${dayNames[idx]}</div>`;
+      dayCol.innerHTML = `<div class="week-day-header ${isToday ? 'today' : ''}" > ${dayNames[idx]}</div> `;
 
       const items = weekData[date] || [];
       if (items.length === 0) {
-        dayCol.innerHTML += `<div class="week-empty">No lessons</div>`;
+        dayCol.innerHTML += `<div class="week-empty" > No lessons</div> `;
       } else {
         for (const item of items) {
           const mini = document.createElement('div');
@@ -230,13 +397,14 @@ const App = (() => {
         <div class="risk-bar" style="width: ${item.risk}%; background: ${getRiskColor(item.risk)}"></div>
       </div>
       <div class="risk-explanation">${item.explanation}</div>
-    `;
+`;
     return card;
   }
 
   // ---- Subject Detail ----
   function renderSubjectDetail(container, subjectId) {
     container.innerHTML = '';
+    updateClassSelectorUI();
     if (!renderStudentSelector(container, () => renderSubjectDetail(container, subjectId))) return;
 
     const subject = DB.getSubject(subjectId);
@@ -254,9 +422,9 @@ const App = (() => {
 
     // Personal Risk Card
     const riskCard = document.createElement('div');
-    riskCard.className = `card risk-detail-card risk-${getRiskLevel(riskResult.risk)}`;
+    riskCard.className = `card risk-detail-card risk-${getRiskLevel(riskResult.risk)} `;
     riskCard.innerHTML = `
-      <div class="risk-detail-header">
+      <div class="risk-detail-header" >
         <h2>${subject.name}</h2>
         ${teacher ? `<p class="risk-detail-teacher">${RiskCalculator.getSurname(teacher.name)}</p>` : ''}
       </div>
@@ -284,15 +452,15 @@ const App = (() => {
       <div class="expandable-content" id="stats-content" style="display:none;">
         <div class="class-stats-list">
           ${stats.map(s => `
-            <div class="class-stat-row">
-              <div class="stat-circle" style="background: ${getColorForName(s.studentName)}">${s.initials}</div>
-              <div class="stat-name">${s.studentName}</div>
-              <div class="stat-risk ${getRiskLevel(s.risk)}">${Math.round(s.risk)}%</div>
-              <div class="stat-bar-container">
-                <div class="stat-bar" style="width: ${s.risk}%; background: ${getRiskColor(s.risk)}"></div>
-              </div>
-            </div>
-          `).join('')}
+                <div class="class-stat-row">
+                  <div class="stat-circle" style="background: ${getColorForName(s.studentName)}">${s.initials}</div>
+                  <div class="stat-name">${s.studentName}</div>
+                  <div class="stat-risk ${getRiskLevel(s.risk)}">${Math.round(s.risk)}%</div>
+                  <div class="stat-bar-container">
+                    <div class="stat-bar" style="width: ${s.risk}%; background: ${getRiskColor(s.risk)}"></div>
+                  </div>
+                </div>
+              `).join('')}
         </div>
       </div>
     `;
@@ -315,7 +483,7 @@ const App = (() => {
     historySection.className = 'card';
     historySection.innerHTML = `
       <h3>Your Interrogation History</h3>
-      ${history.length === 0 ? '<p class="empty-text">No interrogations yet in this subject.</p>' :
+    ${history.length === 0 ? '<p class="empty-text">No interrogations yet in this subject.</p>' :
         `<div class="history-list">${history.map(h => `
           <div class="history-item">
             <div class="history-date">${formatDate(h.date)}</div>
@@ -323,7 +491,7 @@ const App = (() => {
           </div>
         `).join('')}</div>`
       }
-    `;
+`;
     container.appendChild(historySection);
 
     // All class interrogations for this subject
@@ -336,7 +504,7 @@ const App = (() => {
       const allSection = document.createElement('div');
       allSection.className = 'card expandable-section';
       allSection.innerHTML = `
-        <div class="expandable-header" id="toggle-all">
+        <div class="expandable-header" id = "toggle-all" >
           <h3>Recent Class Interrogations</h3>
           <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
@@ -346,12 +514,12 @@ const App = (() => {
         const stud = DB.getStudent(i.studentId);
         const initials = stud ? RiskCalculator.getInitials(stud.name) : '??';
         return `
-                <div class="interrogation-row">
-                  <div class="stat-circle small" style="background: ${stud ? getColorForName(stud.name) : '#ccc'}">${initials}</div>
-                  <div class="interrog-name">${stud ? stud.name : 'Unknown'}</div>
-                  <div class="interrog-date">${formatDate(i.date)}</div>
-                </div>
-              `;
+                      <div class="interrogation-row">
+                        <div class="stat-circle small" style="background: ${stud ? getColorForName(stud.name) : '#ccc'}">${initials}</div>
+                        <div class="interrog-name">${stud ? stud.name : 'Unknown'}</div>
+                        <div class="interrog-date">${formatDate(i.date)}</div>
+                      </div>
+                    `;
       }).join('')}
           </div>
         </div>
@@ -381,6 +549,7 @@ const App = (() => {
   // ---- Registra (Unified Action Center) ----
   function renderRegistra(container) {
     container.innerHTML = '';
+    updateClassSelectorUI();
     if (!renderStudentSelector(container, () => renderRegistra(container))) return;
 
     const subjects = DB.getSubjects();
@@ -523,98 +692,180 @@ const App = (() => {
     });
   }
 
-  // ---- History ----
   function renderHistory(container) {
     container.innerHTML = '';
+    updateClassSelectorUI();
     if (!renderStudentSelector(container, () => renderHistory(container))) return;
 
+    const history = DB.getInterrogations()
+      .filter(i => i.studentId === currentStudentId)
+      .sort((a, b) => b.date.localeCompare(a.date));
+
     const subjects = DB.getSubjects();
-    const interrogations = DB.getInterrogations().filter(i => i.studentId === currentStudentId);
 
-    const card = document.createElement('div');
-    card.className = 'card';
-    card.innerHTML = `<h2>Your Subject History</h2>`;
-
-    for (const subject of subjects) {
-      const subInterrog = interrogations
-        .filter(i => i.subjectId === subject.id)
-        .sort((a, b) => b.date.localeCompare(a.date));
-
-      const teacher = subject.teacherId ? DB.getTeacher(subject.teacherId) : null;
-
-      const section = document.createElement('div');
-      section.className = 'history-subject-section';
-      section.innerHTML = `
-        <div class="history-subject-header">
-          <strong>${subject.name}</strong>
-          ${teacher ? `<span class="history-teacher">${RiskCalculator.getSurname(teacher.name)}</span>` : ''}
-          <span class="history-count">${subInterrog.length} interrogazione${subInterrog.length !== 1 ? 's' : ''}</span>
-        </div>
-        ${subInterrog.length === 0 ? '<p class="empty-text">Not yet interrogated</p>' :
-          `<div class="history-list compact">${subInterrog.map(h => `
-            <div class="history-item">
-              <div class="history-date">${formatDate(h.date)}</div>
-              <div class="history-grade">${h.grade != null ? h.grade + '/10' : '—'}</div>
+    container.innerHTML += `
+        <div class="card">
+          <h3>Cronologia Interrogazioni</h3>
+          ${history.length === 0 ? '<p class="empty-text">Nessuna interrogazione registrata.</p>' : `
+            <div class="history-list">
+              ${history.map(i => {
+      const subj = subjects.find(s => s.id === i.subjectId);
+      return `
+                  <div class="history-item">
+                    <div class="history-info">
+                      <div class="history-subject">${subj ? subj.name : 'Materia sconosciuta'}</div>
+                      <div class="history-date">${formatDate(i.date)}</div>
+                    </div>
+                    <div class="history-grade">${i.grade != null ? i.grade + '/10' : '—'}</div>
+                  </div>
+                `;
+    }).join('')}
             </div>
-          `).join('')}</div>`
-        }
+          `}
+        </div>
       `;
-      card.appendChild(section);
-    }
-
-    container.appendChild(card);
   }
 
-  // ---- Admin ----
   function renderAdmin(container) {
-    container.innerHTML = '';
-
-    const header = document.createElement('div');
-    header.className = 'admin-header';
-    header.innerHTML = `<h2>Administration Panel</h2><p class="admin-subtitle">Configure class data, run simulations, and manage the system.</p>`;
-    container.appendChild(header);
-
-    // Tabs
-    const tabs = document.createElement('div');
-    tabs.className = 'admin-tabs';
-    const tabNames = ['Students', 'Subjects', 'Teachers', 'Schedule', 'Vacations', 'Interrogations', 'Absences', 'Volunteers', 'Simulation', 'Reset'];
-    tabs.innerHTML = tabNames.map((t, i) =>
-      `<button class="admin-tab ${i === 0 ? 'active' : ''}" data-tab="${t.toLowerCase()}">${t}</button>`
-    ).join('');
-    container.appendChild(tabs);
-
-    const tabContent = document.createElement('div');
-    tabContent.className = 'admin-tab-content';
-    container.appendChild(tabContent);
-
-    function showTab(name) {
-      tabs.querySelectorAll('.admin-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-      switch (name) {
-        case 'students': renderAdminStudents(tabContent); break;
-        case 'subjects': renderAdminSubjects(tabContent); break;
-        case 'teachers': renderAdminTeachers(tabContent); break;
-        case 'schedule': renderAdminSchedule(tabContent); break;
-        case 'vacations': renderAdminVacations(tabContent); break;
-        case 'interrogations': renderAdminInterrogations(tabContent); break;
-        case 'absences': renderAdminAbsences(tabContent); break;
-        case 'volunteers': renderAdminVolunteers(tabContent); break;
-        case 'simulation': renderAdminSimulation(tabContent); break;
-        case 'reset': renderAdminReset(tabContent); break;
-      }
+    const session = DB.getSession();
+    if (session.user.role !== 'admin' && session.user.role !== 'class_admin') {
+      location.hash = 'dashboard';
+      return;
     }
 
-    tabs.querySelectorAll('.admin-tab').forEach(t => {
-      t.addEventListener('click', () => showTab(t.dataset.tab));
+    updateClassSelectorUI();
+
+    container.innerHTML = `
+        <div class="admin-header-tabs">
+          ${session.user.role === 'admin' ? '<button class="admin-tab active" data-tab="classes">Classi</button>' : ''}
+          <button class="admin-tab ${session.user.role !== 'admin' ? 'active' : ''}" data-tab="students">Studenti</button>
+          <button class="admin-tab" data-tab="subjects">Materie</button>
+          <button class="admin-tab" data-tab="teachers">Docenti</button>
+          <button class="admin-tab" data-tab="schedule">Orario</button>
+          <button class="admin-tab" data-tab="vacations">Vacanze</button>
+          <button class="admin-tab" data-tab="interrogations">Interr.</button>
+          <button class="admin-tab" data-tab="sim">Simulazione</button>
+          <button class="admin-tab" data-tab="reset">Reset</button>
+        </div>
+        <div id="admin-tab-content"></div>
+      `;
+
+    const tabs = container.querySelectorAll('.admin-tab');
+    const content = container.querySelector('#admin-tab-content');
+
+    const renderTab = (tab) => {
+      tabs.forEach(t => t.classList.remove('active'));
+      const activeTab = Array.from(tabs).find(t => t.dataset.tab === tab);
+      if (activeTab) activeTab.classList.add('active');
+
+      content.innerHTML = '';
+      switch (tab) {
+        case 'students': renderAdminStudents(content); break;
+        case 'classes': renderAdminClasses(content); break;
+        case 'subjects': renderAdminSubjects(content); break;
+        case 'teachers': renderAdminTeachers(content); break;
+        case 'schedule': renderAdminSchedule(content); break;
+        case 'vacations': renderAdminVacations(content); break;
+        case 'interrogations': renderAdminInterrogations(content); break;
+        case 'sim': renderAdminSimulation(content); break;
+        case 'reset': renderAdminReset(content); break;
+      }
+    };
+
+    tabs.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        localStorage.setItem('admin_last_tab', tab);
+        renderTab(tab);
+      });
     });
 
-    showTab('students');
+    renderTab(localStorage.getItem('admin_last_tab') || (session.user.role === 'admin' ? 'classes' : 'students'));
+  }
+
+  function renderAdminClasses(container) {
+    const classes = DB.getClasses();
+    const currentClass = DB.getCurrentClassId();
+    container.innerHTML = `
+      <div class="card admin-card">
+        <h3>Gestione Classi (${classes.length})</h3>
+        <form id="add-class-form" class="admin-inline-form">
+          <input type="text" name="classId" placeholder="Nome nuova classe (es. 3A)" required>
+          <button type="submit" class="btn btn-primary btn-sm">Aggiungi Classe</button>
+        </form>
+        <div class="admin-list" id="classes-list">
+          ${classes.map(c => `
+            <div class="admin-list-item ${c.id === currentClass ? 'active-class-item' : ''}">
+              <div class="admin-item-info">
+                <span class="admin-item-name">${c.id}</span>
+                ${c.id === currentClass ? '<span class="admin-item-extra" style="color:#34C759;font-weight:bold;margin-left:8px;">(Attuale)</span>' : ''}
+              </div>
+              <div class="admin-item-actions">
+                ${c.id !== currentClass ? `<button class="btn btn-primary btn-xs" data-switch="${c.id}">Passa a questa</button>` : ''}
+                <button class="btn btn-danger btn-xs" data-delete="${c.id}">Elimina</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+
+    container.querySelector('#add-class-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const newClassId = e.target.classId.value.trim();
+      const result = await DB.addClass(newClassId);
+      if (result.error) {
+        alert(result.error);
+      } else {
+        renderAdminClasses(container);
+        updateClassSelectorUI();
+      }
+    });
+
+    container.querySelectorAll('[data-switch]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const classId = btn.dataset.switch;
+        const main = document.getElementById('main-content');
+        if (main) main.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#8E99A4;"><p>Cambio classe in corso...</p></div>';
+
+        await DB.setClassId(classId);
+        localStorage.setItem('currentClassId', classId);
+        localStorage.removeItem('selectedStudentId');
+
+        handleRoute();
+      });
+    });
+
+    container.querySelectorAll('[data-delete]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (confirm('ATTENZIONE: Eliminare questa classe e TUTTI i suoi dati (studenti, materie, voti, orario)? Questa azione non può essere annullata.')) {
+          await DB.deleteClass(btn.dataset.delete);
+          if (DB.getCurrentClassId() === btn.dataset.delete) {
+            const remaining = DB.getClasses();
+            if (remaining.length > 0) {
+              await DB.setClassId(remaining[0].id);
+              localStorage.setItem('currentClassId', remaining[0].id);
+            } else {
+              await DB.addClass('Classe-1');
+              await DB.setClassId('Classe-1');
+              localStorage.setItem('currentClassId', 'Classe-1');
+            }
+            localStorage.removeItem('selectedStudentId');
+            handleRoute();
+          } else {
+            renderAdminClasses(container);
+            updateClassSelectorUI();
+          }
+        }
+      });
+    });
   }
 
   function renderAdminStudents(container) {
     const students = RiskCalculator.sortBySurname(DB.getStudents());
     const config = DB.getConfig();
     container.innerHTML = `
-      <div class="card admin-card">
+  <div class="card admin-card" >
         <h3>Studenti (${students.length})</h3>
 
         <div style="padding: 14px; background: #F5F6F8; border-radius: 12px; margin-bottom: 20px;">
@@ -634,21 +885,38 @@ const App = (() => {
           <div id="cycle-msg" class="form-message"></div>
         </div>
 
-        <form id="add-student-form" class="admin-inline-form">
-          <input type="text" name="name" placeholder="Nome e cognome studente" required>
-          <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
-        </form>
-        <div class="admin-list" id="students-list">
+        <div class="admin-student-new-form-container">
+          <h4>Aggiungi nuovo studente</h4>
+          <form id="add-student-form" class="admin-inline-form">
+            <input type="text" name="lastName" placeholder="Cognome" required style="width: 140px;">
+            <input type="text" name="firstName" placeholder="Nome" required style="width: 140px;">
+            <input type="text" name="password" placeholder="Pass (4 car)" maxlength="4" style="width: 100px;">
+            <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
+          </form>
+        </div>
+        <div class="admin-list students-admin-list" id="students-list">
           ${students.map(s => `
-            <div class="admin-list-item">
-              <div class="stat-circle" style="background: ${getColorForName(s.name)}">${RiskCalculator.getInitials(s.name)}</div>
-              <span class="admin-item-name">${s.name}</span>
-              <button class="btn btn-danger btn-xs" data-delete="${s.id}">Elimina</button>
+            <div class="admin-list-item" data-id="${s.id}">
+              <div class="admin-item-info">
+                <span class="admin-item-name">${s.lastName} ${s.firstName}</span>
+                <span class="admin-item-extra">Pass: <strong>${s.password || '1234'}</strong> | ID: ${s.id}</span>
+                ${session.user.role === 'admin' ? `
+                  <div class="admin-capo-toggle">
+                    <label style="font-size: 11px; cursor: pointer;">
+                      <input type="checkbox" class="capo-checkbox" data-id="${s.id}" ${s.isClassAdmin ? 'checked' : ''}> Capoclasse
+                    </label>
+                  </div>
+                ` : ''}
+              </div>
+              <div class="admin-item-actions">
+                <button class="btn btn-secondary btn-xs edit-student-btn">Modifica</button>
+                <button class="btn btn-danger btn-xs" data-delete="${s.id}">Elimina</button>
+              </div>
             </div>
           `).join('')}
         </div>
       </div>
-    `;
+  `;
 
     container.querySelector('#save-cycle-btn').addEventListener('click', async () => {
       const threshold = parseInt(container.querySelector('#cycle-threshold').value);
@@ -667,14 +935,37 @@ const App = (() => {
 
     container.querySelector('#add-student-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      await DB.addStudent({ name: e.target.name.value, image: null });
-      renderAdminStudents(container);
+      const firstName = e.target.firstName.value.trim();
+      const lastName = e.target.lastName.value.trim();
+      const password = e.target.password.value.trim() || '1234';
+
+      const result = await DB.addStudent({ firstName, lastName, password });
+      if (result.error) {
+        alert(result.error);
+      } else {
+        renderAdminStudents(container);
+      }
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (confirm(`Eliminare questo studente?`)) {
           await DB.deleteStudent(parseInt(btn.dataset.delete));
           renderAdminStudents(container);
+        }
+      });
+    });
+
+    container.querySelectorAll('.capo-checkbox').forEach(chk => {
+      chk.addEventListener('change', async () => {
+        const id = parseInt(chk.dataset.id);
+        const student = DB.getStudent(id);
+        if (student) {
+          await DB.updateStudent(id, {
+            firstName: student.firstName,
+            lastName: student.lastName,
+            password: student.password,
+            isClassAdmin: chk.checked
+          });
         }
       });
     });
@@ -1070,8 +1361,12 @@ const App = (() => {
     container.innerHTML = `
       <div class="card admin-card">
         <h3>Simulation Mode</h3>
-        <p class="admin-hint">Generate random data for testing. This will reset all existing data.</p>
+        <p class="admin-hint">Generate random data for testing. If you provide a new class name, a new class will be created. Otherwise, the current class (${DB.getCurrentClassId()}) will be RESET and populated.</p>
         <div class="sim-controls">
+          <div class="form-group" style="grid-column: span 2;">
+            <label>New Class name (optional)</label>
+            <input type="text" id="sim-class-name" placeholder="es. Classe-TEST (lascia vuoto per attuale)">
+          </div>
           <div class="form-group">
             <label>Students</label>
             <input type="number" id="sim-students" min="5" max="40" value="25">
@@ -1095,7 +1390,11 @@ const App = (() => {
     `;
 
     container.querySelector('#sim-run').addEventListener('click', async () => {
-      if (!confirm('This will DELETE all existing data and generate new random data. Continue?')) return;
+      const className = container.querySelector('#sim-class-name').value.trim();
+      const targetTxt = className ? `creare la nuova classe "${className}"` : `CANCELLARE TUTTI i dati della classe attuale ("${DB.getCurrentClassId()}")`;
+
+      if (!confirm(`Questa azione andrà a ${targetTxt} e generare dati casuali. Continuare?`)) return;
+
       const btn = container.querySelector('#sim-run');
       btn.disabled = true;
       btn.textContent = 'Generando dati... (attendere)';
@@ -1108,10 +1407,14 @@ const App = (() => {
           parseInt(container.querySelector('#sim-students').value),
           parseInt(container.querySelector('#sim-subjects').value),
           parseInt(container.querySelector('#sim-teachers').value),
-          parseInt(container.querySelector('#sim-days').value)
+          parseInt(container.querySelector('#sim-days').value),
+          className || null
         );
         msg.className = 'form-message success';
-        msg.textContent = `Generati: ${result.students} studenti, ${result.subjects} materie, ${result.teachers} professori con ${container.querySelector('#sim-days').value} giorni di storico.`;
+        msg.textContent = `Successo! Classe: ${result.classId}. Generati: ${result.students} studenti, ${result.subjects} materie, ${result.teachers} professori.`;
+        if (className) {
+          setTimeout(() => handleRoute(), 1500);
+        }
       } catch (e) {
         msg.className = 'form-message error';
         msg.textContent = 'Errore durante la generazione: ' + e.message;
@@ -1226,3 +1529,4 @@ const App = (() => {
 })();
 
 document.addEventListener('DOMContentLoaded', App.init);
+

@@ -165,6 +165,25 @@ body {
   z-index: 99;
 }
 
+/* ---- Class Selector Global ---- */
+.class-selector {
+  border: 1px solid #E8EAED;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1A1A2E;
+  background: #F9FAFB;
+  cursor: pointer;
+  font-family: inherit;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238E99A4' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 28px;
+  margin-left: auto;
+}
+
 /* ---- Student Header ---- */
 .student-header {
   display: flex;
@@ -213,6 +232,22 @@ body {
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 32px;
+}
+
+.student-header-top-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-header-class {
+  font-size: 14px;
+  font-weight: 700;
+  color: #4A90D9;
+  background: #EBF2FC;
+  padding: 4px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
 }
 
 .date-picker-row {
@@ -1515,6 +1550,15 @@ body {
   }
 }
 
+.form-card {
+  transition: all 0.3s ease;
+}
+
+.form-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
 .primary-action {
   border-top: 4px solid #4A90D9;
 }
@@ -1524,7 +1568,11 @@ body {
 }
 
 .secondary-action {
-  border-top: 4px solid #E8EAED;
+  border-top: 4px solid #5A6775;
+}
+
+.secondary-action h3 {
+  color: #5A6775;
 }
 
 .registra-side {
