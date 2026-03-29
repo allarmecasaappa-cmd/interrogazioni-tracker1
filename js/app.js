@@ -227,11 +227,11 @@ const App = (() => {
           <div class="student-name-display">${student.name}</div>
           <div class="student-class-display">${DB.getCurrentClassId()}</div>
         </div>
-        <button class="btn-logout-icon" title="Esci">🚪</button>
+        <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci">🚪</button>
       `;
       container.appendChild(header);
 
-      header.querySelector('.btn-logout-icon').addEventListener('click', () => {
+      header.querySelector('.btn-logout-icon-only')?.addEventListener('click', () => {
         if (confirm('Vuoi uscire?')) DB.logout();
       });
 
@@ -281,7 +281,7 @@ const App = (() => {
             <input type="date" id="date-select" class="date-input" value="${selectedDate}">
           </div>
         </div>
-        <button class="btn-logout-icon" title="Esci">🚪</button>
+        <button class="btn btn-secondary btn-sm btn-logout" title="Esci">Esci</button>
       `;
       container.appendChild(header);
 
@@ -298,7 +298,7 @@ const App = (() => {
         else handleRoute();
       });
 
-      header.querySelector('.btn-logout-icon').addEventListener('click', () => {
+      header.querySelector('.btn-logout')?.addEventListener('click', () => {
         if (confirm('Vuoi uscire?')) DB.logout();
       });
     }
@@ -423,6 +423,20 @@ const App = (() => {
         <div class="risk-bar" style="width: ${item.risk}%; background: ${getRiskColor(item.risk)}"></div>
       </div>
       <div class="risk-explanation">${item.explanation}</div>
+      <div class="risk-card-stats">
+        <div class="stat-item" title="Media interrogazioni previste al giorno">
+          <span class="stat-label">Media:</span>
+          <span class="stat-value">${item.avgDaily || 0}</span>
+        </div>
+        <div class="stat-item" title="Studenti volontari oggi">
+          <span class="stat-label">Volontari:</span>
+          <span class="stat-value">${item.volunteerCount || 0}</span>
+        </div>
+        <div class="stat-item" title="Studenti assenti oggi">
+          <span class="stat-label">Assenti:</span>
+          <span class="stat-value">${item.absentCount || 0}</span>
+        </div>
+      </div>
 `;
     return card;
   }
@@ -773,10 +787,15 @@ const App = (() => {
               </div>
             </div>
           </div>
-          ${session.user.role === 'admin' 
-            ? '<div style="font-size: 11px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">Admin Globale</div>' 
-            : '<div style="font-size: 11px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">Capoclasse</div>'
-          }
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+              ${session.user.role === 'admin' 
+                ? '<div style="font-size: 11px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">Admin Globale</div>' 
+                : '<div style="font-size: 11px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">Capoclasse</div>'
+              }
+              <button id="admin-logout-btn" class="btn-header-outline">Esci</button>
+            </div>
+          </div>
         </div>
         <div class="admin-tabs">
           ${session.user.role === 'admin' ? '<button class="admin-tab" data-tab="accessi">Accessi</button>' : ''}
@@ -829,6 +848,10 @@ const App = (() => {
     });
 
     renderTab(localStorage.getItem('admin_last_tab') || (session.user.role === 'admin' ? 'classes' : 'students'));
+
+    container.querySelector('#admin-logout-btn')?.addEventListener('click', () => {
+      if (confirm('Vuoi uscire?')) DB.logout();
+    });
   }
 
   function renderAdminClasses(container) {
@@ -974,15 +997,29 @@ const App = (() => {
           ${students.map(s => `
             <div class="admin-list-item" data-id="${s.id}">
               <div class="admin-item-info">
-                <span class="admin-item-name">${s.lastName} ${s.firstName}</span>
+                <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                  <span class="admin-item-name">${s.lastName} ${s.firstName}</span>
+                  ${s.isDSA ? '<span class="student-flag-badge dsa">DSA</span>' : ''}
+                  ${s.isPFP ? '<span class="student-flag-badge pfp">PFP</span>' : ''}
+                  ${s.noReligion ? '<span class="student-flag-badge no-rel">No Rel.</span>' : ''}
+                </div>
                 <span class="admin-item-extra">Classe: <strong>${s.classId}</strong> | Pass: <strong>${s.password || '1234'}</strong> | ID: ${s.id}</span>
-                ${session.user.role === 'admin' ? `
-                  <div class="admin-capo-toggle">
+                <div class="admin-flags-row">
+                  ${session.user.role === 'admin' ? `
                     <label style="font-size: 11px; cursor: pointer;">
                       <input type="checkbox" class="capo-checkbox" data-id="${s.id}" ${s.isClassAdmin ? 'checked' : ''}> Capoclasse
                     </label>
-                  </div>
-                ` : ''}
+                  ` : ''}
+                  <label style="font-size: 11px; cursor: pointer;">
+                    <input type="checkbox" class="dsa-checkbox" data-id="${s.id}" ${s.isDSA ? 'checked' : ''}> DSA
+                  </label>
+                  <label style="font-size: 11px; cursor: pointer;">
+                    <input type="checkbox" class="pfp-checkbox" data-id="${s.id}" ${s.isPFP ? 'checked' : ''}> PFP
+                  </label>
+                  <label style="font-size: 11px; cursor: pointer;">
+                    <input type="checkbox" class="noreligion-checkbox" data-id="${s.id}" ${s.noReligion ? 'checked' : ''}> No Religione
+                  </label>
+                </div>
               </div>
               <div class="admin-item-actions">
                 <button class="btn btn-secondary btn-xs edit-student-btn">Modifica</button>
@@ -1042,6 +1079,58 @@ const App = (() => {
             password: student.password,
             isClassAdmin: chk.checked
           });
+          renderAdminStudents(container);
+        }
+      });
+    });
+
+    // DSA flag
+    container.querySelectorAll('.dsa-checkbox').forEach(chk => {
+      chk.addEventListener('change', async () => {
+        const id = parseInt(chk.dataset.id);
+        const student = DB.getStudent(id);
+        if (student) {
+          await DB.updateStudent(id, {
+            firstName: student.firstName,
+            lastName: student.lastName,
+            password: student.password,
+            isDSA: chk.checked
+          });
+          renderAdminStudents(container);
+        }
+      });
+    });
+
+    // PFP flag
+    container.querySelectorAll('.pfp-checkbox').forEach(chk => {
+      chk.addEventListener('change', async () => {
+        const id = parseInt(chk.dataset.id);
+        const student = DB.getStudent(id);
+        if (student) {
+          await DB.updateStudent(id, {
+            firstName: student.firstName,
+            lastName: student.lastName,
+            password: student.password,
+            isPFP: chk.checked
+          });
+          renderAdminStudents(container);
+        }
+      });
+    });
+
+    // No Religione flag
+    container.querySelectorAll('.noreligion-checkbox').forEach(chk => {
+      chk.addEventListener('change', async () => {
+        const id = parseInt(chk.dataset.id);
+        const student = DB.getStudent(id);
+        if (student) {
+          await DB.updateStudent(id, {
+            firstName: student.firstName,
+            lastName: student.lastName,
+            password: student.password,
+            noReligion: chk.checked
+          });
+          renderAdminStudents(container);
         }
       });
     });
@@ -1053,14 +1142,17 @@ const App = (() => {
     const config = DB.getConfig();
     container.innerHTML = `
       <div class="card admin-card">
-        <h3>Subjects (${subjects.length})</h3>
+        <h3>Materie (${subjects.length})</h3>
         <form id="add-subject-form" class="admin-inline-form">
-          <input type="text" name="name" placeholder="Subject name" required>
+          <input type="text" name="name" placeholder="Nome materia" required>
           <select name="teacherId">
-            <option value="">No teacher</option>
+            <option value="">Nessun docente</option>
             ${teachers.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
           </select>
-          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+          <label style="font-size:12px;display:flex;align-items:center;gap:4px;cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" name="isReligion"> È Religione
+          </label>
+          <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
         </form>
         <div class="admin-list" id="subjects-list">
           ${subjects.map(s => {
@@ -1069,14 +1161,23 @@ const App = (() => {
       return `
               <div class="admin-list-item">
                 <div class="admin-item-info">
-                  <span class="admin-item-name">${s.name}</span>
-                  <span class="admin-item-detail">${t ? t.name : 'No teacher'}</span>
+                  <div style="display:flex;align-items:center;gap:6px;">
+                    <span class="admin-item-name">${s.name}</span>
+                    ${s.isReligion ? '<span class="student-flag-badge no-rel" style="font-size:9px;">Religione</span>' : ''}
+                  </div>
+                  <span class="admin-item-detail">${t ? t.name : 'Nessun docente'}</span>
                 </div>
                 <div class="admin-avg-control">
-                  <label>Avg/day:</label>
+                  <label>Media/giorno:</label>
                   <input type="number" min="1" max="10" value="${avg}" class="avg-input" data-subject="${s.id}">
                 </div>
-                <button class="btn btn-danger btn-xs" data-delete="${s.id}">Delete</button>
+                <div class="admin-item-actions">
+                  <label style="font-size:11px;cursor:pointer;display:flex;align-items:center;gap:4px;white-space:nowrap;margin-right:10px;">
+                    <input type="checkbox" class="religion-checkbox" data-subject-id="${s.id}" ${s.isReligion ? 'checked' : ''}> Religione
+                  </label>
+                  <button class="btn btn-secondary btn-xs edit-subject-btn" data-id="${s.id}">Modifica</button>
+                  <button class="btn btn-danger btn-xs" data-delete="${s.id}">Elimina</button>
+                </div>
               </div>
             `;
     }).join('')}
@@ -1086,21 +1187,49 @@ const App = (() => {
 
     container.querySelector('#add-subject-form').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const isReligion = e.target.isReligion.checked;
       const subj = await DB.addSubject({
         name: e.target.name.value,
-        teacherId: e.target.teacherId.value ? parseInt(e.target.teacherId.value) : null
+        teacherId: e.target.teacherId.value ? parseInt(e.target.teacherId.value) : null,
+        isReligion
       });
       await DB.setAvgInterrogations(subj.id, 1);
       renderAdminSubjects(container);
     });
+
     container.querySelectorAll('.avg-input').forEach(inp => {
       inp.addEventListener('change', async () => {
         await DB.setAvgInterrogations(parseInt(inp.dataset.subject), parseInt(inp.value) || 1);
       });
     });
+
+    // Toggle religion flag
+    container.querySelectorAll('.religion-checkbox').forEach(chk => {
+      chk.addEventListener('change', async () => {
+        const subjectId = parseInt(chk.dataset.subjectId);
+        await DB.updateSubject(subjectId, { isReligion: chk.checked });
+        renderAdminSubjects(container);
+      });
+    });
+
+    // Edit subject name
+    container.querySelectorAll('.edit-subject-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = parseInt(btn.dataset.id);
+        const subject = DB.getSubject(id);
+        if (!subject) return;
+
+        const newName = prompt('Modifica nome materia:', subject.name);
+        if (newName && newName.trim() !== '' && newName !== subject.name) {
+          await DB.updateSubject(id, { name: newName.trim() });
+          renderAdminSubjects(container);
+        }
+      });
+    });
+
     container.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        if (confirm(`Delete subject and all related data?`)) {
+        if (confirm(`Eliminare la materia e tutti i dati correlati?`)) {
           await DB.deleteSubject(parseInt(btn.dataset.delete));
           renderAdminSubjects(container);
         }
@@ -1120,8 +1249,13 @@ const App = (() => {
         <div class="admin-list">
           ${teachers.map(t => `
             <div class="admin-list-item">
-              <span class="admin-item-name">${t.name}</span>
-              <button class="btn btn-danger btn-xs" data-delete="${t.id}">Delete</button>
+              <div class="admin-item-info" style="flex:1;">
+                <span class="admin-item-name">${t.name}</span>
+              </div>
+              <div class="admin-item-actions">
+                <button class="btn btn-secondary btn-xs edit-teacher-btn" data-id="${t.id}">Modifica</button>
+                <button class="btn btn-danger btn-xs" data-delete="${t.id}">Elimina</button>
+              </div>
             </div>
           `).join('')}
         </div>
@@ -1133,6 +1267,20 @@ const App = (() => {
       await DB.addTeacher({ name: e.target.name.value });
       renderAdminTeachers(container);
     });
+    container.querySelectorAll('.edit-teacher-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = parseInt(btn.dataset.id);
+        const teacher = DB.getTeacher(id);
+        if (!teacher) return;
+
+        const newName = prompt('Modifica nome docente:', teacher.name);
+        if (newName && newName.trim() !== '' && newName !== teacher.name) {
+          await DB.updateTeacher(id, { name: newName.trim() });
+          renderAdminTeachers(container);
+        }
+      });
+    });
+
     container.querySelectorAll('[data-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
         if (confirm(`Delete teacher?`)) {
@@ -1617,7 +1765,9 @@ const App = (() => {
       'at-risk': 'A rischio',
       'no-eligible': 'Nessun eleggibile',
       'no-slots': 'Slot coperti',
-      'no-students': 'Nessuno studente'
+      'no-students': 'Nessuno studente',
+      'no-religion': 'Non in Religione',
+      'dsa-pfp': 'DSA / PFP'
     };
     return map[status] || status;
   }

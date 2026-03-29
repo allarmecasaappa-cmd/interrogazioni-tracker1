@@ -415,6 +415,44 @@ body {
   color: #757575;
 }
 
+.risk-status-badge.no-religion {
+  background: #EDE7F6;
+  color: #4527A0;
+}
+
+.risk-status-badge.dsa-pfp {
+  background: #E8EAF6;
+  color: #283593;
+}
+
+/* ---- Student special flag badges ---- */
+.student-flag-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.student-flag-badge.dsa {
+  background: #E8EAF6;
+  color: #283593;
+}
+
+.student-flag-badge.pfp {
+  background: #E3F2FD;
+  color: #1565C0;
+}
+
+.student-flag-badge.no-rel {
+  background: #EDE7F6;
+  color: #4527A0;
+}
+
 .risk-percentage {
   font-size: 36px;
   font-weight: 700;
@@ -449,8 +487,39 @@ body {
 }
 
 .risk-explanation {
-  font-size: 12px;
+  font-size: 11px;
   color: #8E99A4;
+  margin-bottom: 8px;
+  font-style: italic;
+}
+
+.risk-card-stats {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #F0F1F3;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.stat-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #8E99A4;
+  letter-spacing: 0.3px;
+  margin-bottom: 1px;
+}
+
+.stat-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1A1A2E;
 }
 
 /* ---- Weekly View ---- */
@@ -968,6 +1037,56 @@ body {
   border-radius: 8px;
 }
 
+.btn-header-outline {
+  background: rgba(255, 255, 255, 0.15);
+  color: #FFFFFF;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: all 0.2s ease;
+}
+
+.btn-header-outline:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.btn-logout {
+  color: #FF3B30 !important;
+  border: 1px solid #FF3B30 !important;
+  background: #FFFFFF !important;
+}
+
+.btn-logout:hover {
+  background: #FF3B30 !important;
+  color: #FFFFFF !important;
+  box-shadow: 0 4px 12px rgba(255, 59, 48, 0.2);
+}
+
+.btn-logout-icon-only {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 10px;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #8E99A4;
+}
+
+.btn-logout-icon-only:hover {
+  background: #FFF0F0;
+  color: #FF3B30;
+}
+
 .back-btn {
   margin-top: 16px;
 }
@@ -1110,6 +1229,22 @@ body {
   transition: background 0.15s ease;
 }
 
+.admin-flags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.admin-flags-row label {
+  font-size: 11px;
+  color: #5A6775;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
 .admin-list-item:hover {
   background: #F9FAFB;
 }
@@ -1125,6 +1260,12 @@ body {
   flex-direction: column;
   gap: 2px;
   flex: 1;
+}
+
+.admin-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .admin-item-detail {

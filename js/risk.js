@@ -19,34 +19,39 @@ const RiskCalculator = (() => {
      * @param {Object} params.data - already loaded data object (perf)
      * @returns {Set<number>} studentIds currently in state I (effectively interrogated)
      */
-    function computeCycleAdjustedI({ subjectId, N, data }) {
+    /**
+     * Compute the "effective I" set for a subject, applying the cycle mechanic.
+     *
+     * @param {Object} params
+     * @param {number} params.subjectId
+     * @param {number} params.N  - size of the eligible pool (not DSA/PFP, not noReligion-excluded)
+     * @param {Object} params.data - already loaded data object (perf)
+     * @param {Set<number>} params.eligibleStudentIds - ids of students in the eligible pool
+     * @returns {Set<number>} studentIds currently in state I (effectively interrogated)
+     */
+    function computeCycleAdjustedI({ subjectId, N, data, eligibleStudentIds }) {
         const config = data.config;
         const threshold = config.cycleThreshold != null ? config.cycleThreshold : 80;
         const returnCount = config.cycleReturn != null ? config.cycleReturn : 2;
 
-        // All interrogations for this subject, sorted by date ASC (oldest first)
+        // Only consider interrogations of ELIGIBLE students (not DSA/PFP)
+        // so that volunteer-only interrogations don't skew the cycle.
         const subjectInterrogs = data.interrogations
-            .filter(i => i.subjectId === subjectId)
+            .filter(i => i.subjectId === subjectId && eligibleStudentIds.has(i.studentId))
             .sort((a, b) => a.date.localeCompare(b.date));
 
-        // Build a map: studentId -> latest interrogation date in this subject
-        // We process in chronological order; later entries overwrite earlier ones.
-        // Students are ordered by their MOST RECENT interrogation date for removal priority.
-        // We maintain the list as: oldest-most-recent-date first.
         const studentLastDate = new Map();
         for (const interrog of subjectInterrogs) {
             studentLastDate.set(interrog.studentId, interrog.date);
         }
 
-        // Convert to sorted array: [studentId, lastDate] sorted by lastDate ASC (oldest first)
         let interrogatedList = [...studentLastDate.entries()]
             .sort((a, b) => a[1].localeCompare(b[1]));
 
-        // Apply cycle: while I count >= threshold% of N, remove the R oldest
+        // Apply cycle against eligible N only
         const cycleThresholdCount = Math.ceil((threshold / 100) * N);
 
         while (interrogatedList.length >= cycleThresholdCount && interrogatedList.length > 0) {
-            // Remove the R oldest students
             const toRemove = Math.min(returnCount, interrogatedList.length);
             interrogatedList = interrogatedList.slice(toRemove);
         }
@@ -84,71 +89,107 @@ const RiskCalculator = (() => {
             return { risk: 0, status: 'not-scheduled', explanation: 'Materia non in orario oggi' };
         }
 
-        const N = students.length;
-        if (N === 0) return { risk: 0, status: 'no-students', explanation: 'Nessuno studente in classe' };
+        // --- Find subject and student objects ---
+        const subject = data.subjects.find(s => s.id === subjectId);
+        const student = students.find(s => s.id === studentId);
 
-        // Compute effective I with cycle adjustment
-        const effectiveI = computeCycleAdjustedI({ subjectId, N, data });
+        // --- Collect Data for Statistics ---
+        const absentIds = new Set(
+            absences
+                .filter(a => a.date === date && (a.subjectId === null || a.subjectId === subjectId))
+                .map(a => a.studentId)
+        );
+        const volunteerIds = new Set(
+            volunteers
+                .filter(v => v.subjectId === subjectId && v.date === date)
+                .map(v => v.studentId)
+        );
+        const M = config.avgInterrogationsPerSubjectPerDay[subjectId] || 1;
 
-        // Students interrogated on this specific date (for slots/eligible counting)
+        const baseStats = {
+            avgDaily: M,
+            volunteerCount: volunteerIds.size,
+            absentCount: absentIds.size
+        };
+
+        // --- noReligion check (before anything else) ---
+        if (subject && subject.isReligion && student && student.noReligion) {
+            return { risk: 0, status: 'no-religion', explanation: 'Non partecipi alle lezioni di religione', ...baseStats };
+        }
+
+        // --- Determine the participating pool for this subject ---
+        // For religion subjects, exclude noReligion students entirely.
+        const participatingStudents = (subject && subject.isReligion)
+            ? students.filter(s => !s.noReligion)
+            : students;
+
+        // Eligible pool = participating students who are NOT DSA and NOT PFP
+        const eligibleStudentIds = new Set(
+            participatingStudents.filter(s => !s.isDSA && !s.isPFP).map(s => s.id)
+        );
+        const N_eligible = eligibleStudentIds.size;
+
+        if (participatingStudents.length === 0) {
+            return { risk: 0, status: 'no-students', explanation: 'Nessuno studente partecipante', ...baseStats };
+        }
+
+        // Compute effective I — only from the eligible pool, with cycle adjustment
+        const effectiveI = computeCycleAdjustedI({ subjectId, N: N_eligible, data, eligibleStudentIds });
+
+        // Students interrogated on this specific date
         const interrogatedToday = new Set(
             interrogations
                 .filter(i => i.subjectId === subjectId && i.date === date)
                 .map(i => i.studentId)
         );
 
-        // Students absent (full day or this subject) on date
-        const absentIds = new Set(
-            absences
-                .filter(a => a.date === date && (a.subjectId === null || a.subjectId === subjectId))
-                .map(a => a.studentId)
-        );
-        const A = absentIds.size;
+        // --- Student-specific rules ---
 
-        // Volunteers for this subject on this date
-        const volunteerIds = new Set(
-            volunteers
-                .filter(v => v.subjectId === subjectId && v.date === date)
-                .map(v => v.studentId)
-        );
-        const V = volunteerIds.size;
-
-        // Average interrogations per day for this subject
-        const M = config.avgInterrogationsPerSubjectPerDay[subjectId] || 1;
-
-        // --- Student-specific rules (checked first) ---
-
-        // 1. Volunteer → 100%
+        // 1. Volunteer → 100% (applies to everyone, including DSA/PFP)
         if (volunteerIds.has(studentId)) {
-            return { risk: 100, status: 'volunteer', explanation: 'Hai dato disponibilità — verrai interrogato' };
+            return { risk: 100, status: 'volunteer', explanation: 'Hai dato disponibilità — verrai interrogato', ...baseStats };
         }
 
-        // 2. Already interrogated (in effective I after cycle) → 0%
+        // 2. DSA or PFP (and not a volunteer) → never eligible
+        if (student && (student.isDSA || student.isPFP)) {
+            const label = student.isDSA ? 'DSA' : 'PFP';
+            return { risk: 0, status: 'dsa-pfp', explanation: `Studente ${label}: non eleggibile per interrogazione casuale`, ...baseStats };
+        }
+
+        // 3. Already interrogated (in effective I after cycle) → 0%
         if (effectiveI.has(studentId)) {
-            return { risk: 0, status: 'already-interrogated', explanation: 'Già interrogato in questa materia' };
+            return { risk: 0, status: 'already-interrogated', explanation: 'Già interrogato in questa materia', ...baseStats };
         }
 
-        // 3. Absent today → 0%
+        // 4. Absent today → 0%
         if (absentIds.has(studentId)) {
-            return { risk: 0, status: 'absent', explanation: 'Sei assente oggi' };
+            return { risk: 0, status: 'absent', explanation: 'Sei assente oggi', ...baseStats };
         }
 
-        // --- Class-level computation ---
+        // --- Class-level computation (eligible pool only) ---
 
-        // I for slot computation = students in effective I set
         const I = effectiveI.size;
 
-        // Eligible = N - I - A - V (but I has already been cycle-adjusted)
-        const E = Math.max(0, N - I - A - V);
+        // Absent students who are in the eligible pool
+        const A_eligible = [...absentIds].filter(id => eligibleStudentIds.has(id)).length;
 
-        // Available slots = max(0, M - V)
-        const Slot = Math.max(0, M - V);
+        // Volunteers who are in the eligible pool (they take a slot AND leave the random pool)
+        const V_eligible = [...volunteerIds].filter(id => eligibleStudentIds.has(id)).length;
+
+        // V_all: all volunteers use slots regardless of DSA/PFP status
+        const V_all = volunteerIds.size;
+
+        // E = eligible students still available for random selection
+        const E = Math.max(0, N_eligible - I - A_eligible - V_eligible);
+
+        // Available slots for random selection = M minus ALL volunteers
+        const Slot = Math.max(0, M - V_all);
 
         if (E === 0) {
-            return { risk: 0, status: 'no-eligible', explanation: 'Nessuno studente eleggibile' };
+            return { risk: 0, status: 'no-eligible', explanation: 'Nessuno studente eleggibile', ...baseStats };
         }
         if (Slot === 0) {
-            return { risk: 0, status: 'no-slots', explanation: 'Tutti gli slot sono coperti dai volontari' };
+            return { risk: 0, status: 'no-slots', explanation: 'Tutti gli slot sono coperti dai volontari', ...baseStats };
         }
 
         // Risk = Slot / E, clamped 0–100
@@ -158,7 +199,12 @@ const RiskCalculator = (() => {
 
         const explanation = `${Slot} slot per ${E} studenti eleggibili (I=${I} dopo ciclo)`;
 
-        return { risk, status: 'at-risk', explanation };
+        return { 
+            risk, 
+            status: 'at-risk', 
+            explanation,
+            ...baseStats
+        };
     }
 
     /**

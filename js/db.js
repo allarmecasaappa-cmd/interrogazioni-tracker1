@@ -50,7 +50,7 @@ const DB = (() => {
   // ---- row mappers (snake_case DB → camelCase app) ----
 
   function mapSubject(r) {
-    return { id: r.id, name: r.name, teacherId: r.teacher_id };
+    return { id: r.id, name: r.name, teacherId: r.teacher_id, isReligion: r.is_religion || false };
   }
   function mapStudent(r) {
     return {
@@ -61,7 +61,10 @@ const DB = (() => {
       password: r.password,
       classId: r.class_id,
       image: r.image,
-      isClassAdmin: r.is_class_admin || false
+      isClassAdmin: r.is_class_admin || false,
+      isDSA: r.is_dsa || false,
+      isPFP: r.is_pfp || false,
+      noReligion: r.no_religion || false
     };
   }
   function mapSchedule(r) {
@@ -301,6 +304,11 @@ const DB = (() => {
       dbUpdates.is_class_admin = updates.isClassAdmin;
     }
 
+    // These flags can be updated by admin or class_admin
+    if (updates.isDSA !== undefined)      dbUpdates.is_dsa       = updates.isDSA;
+    if (updates.isPFP !== undefined)      dbUpdates.is_pfp       = updates.isPFP;
+    if (updates.noReligion !== undefined) dbUpdates.no_religion  = updates.noReligion;
+
     const { data, error } = await _client
       .from('students').update(dbUpdates).eq('id', id).select().single();
     if (error) return { error: error.message };
@@ -316,7 +324,10 @@ const DB = (() => {
         last_name: s.lastName,
         name: s.lastName + ' ' + s.firstName,
         password: s.password || '1234',
-        class_id: _currentClassId
+        class_id: _currentClassId,
+        is_dsa: s.isDSA || false,
+        is_pfp: s.isPFP || false,
+        no_religion: s.noReligion || false
       }).select().single();
     if (error) return { error: error.message };
     _cache.students.push(mapStudent(data));
@@ -339,7 +350,7 @@ const DB = (() => {
   async function addSubject(s) {
     const { data, error } = await _client
       .from('subjects')
-      .insert({ name: s.name, teacher_id: s.teacherId || null, class_id: _currentClassId })
+      .insert({ name: s.name, teacher_id: s.teacherId || null, class_id: _currentClassId, is_religion: s.isReligion || false })
       .select().single();
     if (error) return { error: error.message };
     const mapped = mapSubject(data);
@@ -349,8 +360,9 @@ const DB = (() => {
 
   async function updateSubject(id, updates) {
     const dbUpdates = {};
-    if (updates.name !== undefined) dbUpdates.name = updates.name;
-    if (updates.teacherId !== undefined) dbUpdates.teacher_id = updates.teacherId;
+    if (updates.name !== undefined)       dbUpdates.name        = updates.name;
+    if (updates.teacherId !== undefined)  dbUpdates.teacher_id  = updates.teacherId;
+    if (updates.isReligion !== undefined) dbUpdates.is_religion = updates.isReligion;
     const { data, error } = await _client
       .from('subjects').update(dbUpdates).eq('id', id).select().single();
     if (error) return null;
