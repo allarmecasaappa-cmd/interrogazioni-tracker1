@@ -87,11 +87,11 @@ const DB = (() => {
 
   async function _loadAll() {
     const [
-      classesRes, studRes, subjRes, teachRes, schedRes,
-      interrogRes, absRes, volRes, vacRes,
-      cfgRes, avgRes
+      classesRes, classCfgRes, studRes, subjRes, teachRes, schedRes,
+      interrogRes, absRes, volRes, vacRes, avgRes
     ] = await Promise.all([
       _client.from('classes').select('*'),
+      _client.from('classes').select('*').eq('id', _currentClassId).single(),
       _client.from('students').select('*').eq('class_id', _currentClassId),
       _client.from('subjects').select('*').eq('class_id', _currentClassId),
       _client.from('teachers').select('*').eq('class_id', _currentClassId),
@@ -100,11 +100,10 @@ const DB = (() => {
       _client.from('absences').select('*').eq('class_id', _currentClassId),
       _client.from('volunteers').select('*').eq('class_id', _currentClassId),
       _client.from('vacations').select('*').eq('class_id', _currentClassId),
-      _client.from('config').select('*').eq('id', 1).single(),
       _client.from('subject_avg').select('*').eq('class_id', _currentClassId)
     ]);
 
-    const cfg = cfgRes.data || {};
+    const cfg = classCfgRes.data || {};
     const avgMap = {};
     (avgRes.data || []).forEach(r => { avgMap[r.subject_id] = r.avg_per_day; });
 
@@ -138,9 +137,7 @@ const DB = (() => {
 
   async function setClassId(classId) {
     _currentClassId = classId;
-    if (_session.user && _session.user.role === 'admin') {
-      await _loadAll();
-    }
+    await _loadAll();
   }
 
   // ---- Auth & Session ----
@@ -150,7 +147,11 @@ const DB = (() => {
       const saved = localStorage.getItem('app_session');
       if (saved) {
         _session = JSON.parse(saved);
-        _currentClassId = _session.user.classId || _currentClassId;
+        // Solo studenti e capiclasse hanno la classe fissa e immutabile dal selettore.
+        // Gli Admin globali caricano la classe dal localStorage globale tramite DB.init()
+        if (_session.user && _session.user.role !== 'admin') {
+          _currentClassId = _session.user.classId || _currentClassId;
+        }
       }
     }
     return _session;
@@ -219,6 +220,7 @@ const DB = (() => {
       };
       _currentClassId = found.class_id;
       localStorage.setItem('app_session', JSON.stringify(_session));
+      localStorage.setItem('currentClassId', found.class_id);
       await _loadAll();
       return { success: true, role: role };
     }
@@ -228,7 +230,29 @@ const DB = (() => {
   }
 
   async function _logAttempt(username, success) {
-    await _client.from('login_attempts').insert({ username, success });
+    let deviceInfo = navigator.userAgent;
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      if (res.ok) {
+        const data = await res.json();
+        deviceInfo = data.ip + ' | ' + deviceInfo;
+      }
+    } catch (e) { }
+
+    // Try sending device_info (will fail gracefully if the column mapping/schema isn't updated yet,
+    // so we handle the insert safely. Supabase might complain if row is absent, so we do standard insert).
+    await _client.from('login_attempts').insert({ username, success, device_info: deviceInfo });
+  }
+
+  async function getAdminLogins() {
+    const { data } = await _client
+      .from('login_attempts')
+      .select('*')
+      .ilike('username', 'admin')
+      .eq('success', true)
+      .order('attempted_at', { ascending: false })
+      .limit(10);
+    return data || [];
   }
 
   function logout() {
@@ -543,12 +567,12 @@ const DB = (() => {
   }
 
   async function setSchoolDays(days) {
-    await _client.from('config').update({ school_days: days }).eq('id', 1);
+    await _client.from('classes').update({ school_days: days }).eq('id', _currentClassId);
     _cache.config.schoolDays = days;
   }
 
   async function setCycleConfig(threshold, returnCount) {
-    await _client.from('config').update({ cycle_threshold: threshold, cycle_return: returnCount }).eq('id', 1);
+    await _client.from('classes').update({ cycle_threshold: threshold, cycle_return: returnCount }).eq('id', _currentClassId);
     _cache.config.cycleThreshold = threshold;
     _cache.config.cycleReturn = returnCount;
   }
@@ -570,9 +594,9 @@ const DB = (() => {
     await _client.from('subjects').delete().eq('class_id', _currentClassId);
     await _client.from('students').delete().eq('class_id', _currentClassId);
     await _client.from('teachers').delete().eq('class_id', _currentClassId);
-    await _client.from('config').update({
+    await _client.from('classes').update({
       school_days: 5, cycle_threshold: 80, cycle_return: 2
-    }).eq('id', 1);
+    }).eq('id', _currentClassId);
     _cache = _defaultCache();
   }
 
@@ -632,6 +656,6 @@ const DB = (() => {
     getConfig, setAvgInterrogations, setSchoolDays, setCycleConfig,
     resetAll, resetSelective,
     getClasses, addClass, deleteClass,
-    getSession, login, logout
+    getSession, login, logout, getAdminLogins
   };
 })();

@@ -168,11 +168,14 @@ const RiskCalculator = (() => {
         const data = DB.load();
         const dayOfWeek = getDayOfWeek(date);
 
-        const scheduledSubjectIds = [...new Set(
-            data.schedule
-                .filter(s => s.dayOfWeek === dayOfWeek)
-                .map(s => s.subjectId)
-        )];
+        // Aggregate schedule entries for this day to compute total hours per subject
+        const scheduleForDay = data.schedule.filter(s => s.dayOfWeek === dayOfWeek);
+        const subjectHoursMap = {};
+        for (const s of scheduleForDay) {
+            subjectHoursMap[s.subjectId] = (subjectHoursMap[s.subjectId] || 0) + (s.hours || 1);
+        }
+        
+        const scheduledSubjectIds = Object.keys(subjectHoursMap).map(Number);
 
         const results = [];
         for (const subjectId of scheduledSubjectIds) {
@@ -189,6 +192,7 @@ const RiskCalculator = (() => {
                 subjectId,
                 subjectName: subject.name,
                 teacherName: teacher ? getSurname(teacher.name) : '—',
+                hours: subjectHoursMap[subjectId],
                 ...riskResult
             });
         }
@@ -242,17 +246,14 @@ const RiskCalculator = (() => {
             results.push({
                 studentId: student.id,
                 studentName: student.name,
+                firstName: student.firstName,
+                lastName: student.lastName,
                 initials: getInitials(student.name),
                 ...r
             });
         }
-        // Sort by surname (last word of the name)
-        results.sort((a, b) => {
-            const surnameA = a.studentName.split(' ').pop().toLowerCase();
-            const surnameB = b.studentName.split(' ').pop().toLowerCase();
-            return surnameA.localeCompare(surnameB);
-        });
-        return results;
+        // Use unified sorting logic
+        return sortBySurname(results);
     }
 
     /**

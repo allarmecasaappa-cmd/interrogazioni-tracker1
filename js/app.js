@@ -384,11 +384,17 @@ const App = (() => {
       } else {
         for (const item of items) {
           const mini = document.createElement('div');
-          mini.className = `week-card risk-${getRiskLevel(item.risk)}`;
+          const hoursClass = item.hours > 1 ? ` hours-${item.hours}` : '';
+          mini.className = `week-card risk-${getRiskLevel(item.risk)}${hoursClass}`;
+          
           mini.innerHTML = `
-            <span class="week-subject">${item.subjectName}</span>
-            <span class="week-risk">${Math.round(item.risk)}%</span>
+            <div>
+              <div class="week-subject">${item.subjectName}</div>
+              ${item.hours > 1 ? `<div style="font-size: 11px; color: #8E99A4; font-weight: 500; margin-top: 2px;">${item.hours} ore</div>` : ''}
+            </div>
+            <div class="week-risk">${Math.round(item.risk)}%</div>
           `;
+          
           mini.addEventListener('click', () => {
             selectedDate = date;
             location.hash = `subject/${item.subjectId}`;
@@ -754,8 +760,24 @@ const App = (() => {
     }
 
     updateClassSelectorUI();
+    const currentClass = DB.getCurrentClassId();
 
     container.innerHTML = `
+        <div class="admin-global-header" style="background: linear-gradient(135deg, #4A90D9, #3A78C4); color: white; padding: 16px 20px; border-radius: 12px; margin-bottom: 24px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 4px 12px rgba(74, 144, 217, 0.2);">
+          <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="background: rgba(255,255,255,0.2); width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px;">⚙️</div>
+            <div>
+              <div style="font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; opacity: 0.85;">Pannello di Amministrazione</div>
+              <div style="font-size: 22px; font-weight: 800; display: flex; align-items: center; gap: 8px;">
+                Classe <span style="background: #FFFFFF; color: #4A90D9; padding: 2px 10px; border-radius: 8px; font-size: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">${currentClass}</span>
+              </div>
+            </div>
+          </div>
+          ${session.user.role === 'admin' 
+            ? '<div style="font-size: 11px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">Admin Globale</div>' 
+            : '<div style="font-size: 11px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">Capoclasse</div>'
+          }
+        </div>
         <div class="admin-header-tabs">
           ${session.user.role === 'admin' ? '<button class="admin-tab" data-tab="accessi">Accessi</button>' : ''}
           ${session.user.role === 'admin' ? '<button class="admin-tab active" data-tab="classes">Classi</button>' : ''}
@@ -1199,16 +1221,18 @@ const App = (() => {
       <div class="card admin-card">
         <h3>Vacation Days (${vacations.length})</h3>
         <form id="add-vacation-form" class="admin-inline-form">
-          <input type="date" name="date" required>
-          <input type="text" name="note" placeholder="Note (optional)">
-          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+          <input type="date" name="startDate" title="Dal" required>
+          <span style="font-size: 13px; color: #8E99A4; display: flex; align-items: center;">-</span>
+          <input type="date" name="endDate" title="Al (opzionale)">
+          <input type="text" name="note" placeholder="Note (es. Pasqua)">
+          <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
         </form>
         <div class="admin-list">
           ${vacations.map(v => `
             <div class="admin-list-item">
               <span class="admin-item-name">${formatDate(v.date)}</span>
               <span class="admin-item-detail">${v.note || ''}</span>
-              <button class="btn btn-danger btn-xs" data-delete="${v.id}">Delete</button>
+              <button class="btn btn-danger btn-xs" data-delete="${v.id}">Elimina</button>
             </div>
           `).join('')}
         </div>
@@ -1217,8 +1241,39 @@ const App = (() => {
 
     container.querySelector('#add-vacation-form').addEventListener('submit', async (e) => {
       e.preventDefault();
-      const result = await DB.addVacation({ date: e.target.date.value, note: e.target.note.value });
-      if (result.error) alert(result.error);
+      const startDateStr = e.target.startDate.value;
+      const endDateStr = e.target.endDate.value;
+      const note = e.target.note.value;
+      
+      const start = new Date(startDateStr + 'T00:00:00');
+      let endObj = new Date(startDateStr + 'T00:00:00');
+      
+      if (endDateStr) {
+        const endParsed = new Date(endDateStr + 'T00:00:00');
+        if (endParsed >= start) {
+          endObj = endParsed;
+        } else {
+          alert('La data di fine non può essere precedente alla data di inizio.');
+          return;
+        }
+      }
+      
+      let currentDate = new Date(start);
+      let btn = e.target.querySelector('button');
+      btn.disabled = true;
+      btn.textContent = '...';
+      
+      let errors = [];
+      while (currentDate <= endObj) {
+        const currentStr = DB.formatDateISO(currentDate);
+        const result = await DB.addVacation({ date: currentStr, note: note });
+        if (result.error && !result.error.includes('already exists')) {
+          errors.push(result.error);
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      if (errors.length > 0) alert(errors.join('\\n'));
       renderAdminVacations(container);
     });
     container.querySelectorAll('[data-delete]').forEach(btn => {
