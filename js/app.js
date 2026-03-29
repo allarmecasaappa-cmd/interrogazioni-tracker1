@@ -1464,9 +1464,9 @@ const App = (() => {
 
   function renderAdminSimulation(container) {
     container.innerHTML = `
-      <div class="card admin-card">
-        <h3>Simulation Mode</h3>
-        <p class="admin-hint">Generate random data for testing. If you provide a new class name, a new class will be created. Otherwise, the current class (${DB.getCurrentClassId()}) will be RESET and populated.</p>
+      <div class="card admin-card" style="border-top: 5px solid #FF3B30; background: #FFF5F5;">
+        <h3 style="color: #D32F2F;">⚠️ Simulation Mode (DANGER)</h3>
+        <p class="admin-hint" style="color: #C62828;">Generate random data for testing. If you provide a new class name, a new class will be created. Otherwise, the current class (${DB.getCurrentClassId()}) will be RESET and populated.</p>
         <div class="sim-controls">
           <div class="form-group" style="grid-column: span 2;">
             <label>New Class name (optional)</label>
@@ -1489,7 +1489,7 @@ const App = (() => {
             <input type="number" id="sim-days" min="7" max="90" value="30">
           </div>
         </div>
-        <button id="sim-run" class="btn btn-primary">Generate Simulation Data</button>
+        <button id="sim-run" class="btn btn-danger">Generate Simulation Data</button>
         <div id="sim-msg" class="form-message"></div>
       </div>
     `;
@@ -1499,6 +1499,7 @@ const App = (() => {
       const targetTxt = className ? `creare la nuova classe "${className}"` : `CANCELLARE TUTTI i dati della classe attuale ("${DB.getCurrentClassId()}")`;
 
       if (!confirm(`Questa azione andrà a ${targetTxt} e generare dati casuali. Continuare?`)) return;
+      if (!className && !confirm(`ATTENZIONE SECONDA CONFERMA: Stai per distruggere e sovrascrivere l'intera classe "${DB.getCurrentClassId()}". Sei assolutamente sicuro?`)) return;
 
       const btn = container.querySelector('#sim-run');
       btn.disabled = true;
@@ -1534,11 +1535,11 @@ const App = (() => {
     const isGlobalAdmin = session.user.role === 'admin';
 
     container.innerHTML = `
-      <div class="card admin-card reset-card">
-        <h3>Reset Data</h3>
+      <div class="card admin-card reset-card" style="border-top: 5px solid #FF3B30; background: #FFF5F5;">
+        <h3 style="color: #D32F2F;">⚠️ Reset Data (DANGER)</h3>
         <div class="reset-section">
-          <h4>Selective Reset</h4>
-          <p class="admin-hint">Delete all records of a specific type (limitato alla classe).</p>
+          <h4 style="color: #C62828;">Selective Reset</h4>
+          <p class="admin-hint" style="color: #D32F2F;">Delete all records of a specific type (limitato alla classe).</p>
           <div class="reset-buttons">
             ${['students', 'subjects', 'teachers', 'schedule', 'interrogations', 'absences', 'volunteers', 'vacations'].map(entity => `
               <button class="btn btn-secondary btn-sm" data-reset="${entity}">Reset ${entity}</button>
@@ -1559,16 +1560,17 @@ const App = (() => {
     container.querySelectorAll('[data-reset]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const entity = btn.dataset.reset;
-        if (confirm(`Delete all ${entity}?`)) {
-          btn.disabled = true;
-          btn.textContent = 'Cancellando...';
-          await DB.resetSelective(entity);
-          btn.textContent = `${entity} cleared`;
-          setTimeout(() => {
-            btn.textContent = `Reset ${entity}`;
-            btn.disabled = false;
-          }, 2000);
-        }
+        if (!confirm(`Sei sicuro di voler ELIMINARE TUTTI i dati per: ${entity}?`)) return;
+        if (!confirm(`Ulteriore conferma: L'eliminazione in blocco di "${entity}" non può essere annullata. Procedere?`)) return;
+        
+        btn.disabled = true;
+        btn.textContent = 'Cancellando...';
+        await DB.resetSelective(entity);
+        btn.textContent = `${entity} cleared`;
+        setTimeout(() => {
+          btn.textContent = `Reset ${entity}`;
+          btn.disabled = false;
+        }, 2000);
       });
     });
 
