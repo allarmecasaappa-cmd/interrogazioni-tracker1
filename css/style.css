@@ -503,17 +503,17 @@ body {
 
 .stat-item {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
 }
 
 .stat-label {
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   color: #8E99A4;
   letter-spacing: 0.3px;
-  margin-bottom: 1px;
 }
 
 .stat-value {
@@ -1474,9 +1474,10 @@ body {
   .student-header {
     flex-direction: row;
     align-items: center;
-    gap: 12px;
-    padding: 12px 16px;
-    margin-bottom: 16px;
+    gap: 8px;
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    overflow: hidden; /* Prevent horizontal scroll */
   }
 
   .profile-circle {
@@ -1491,14 +1492,57 @@ body {
 
   .student-select {
     padding: 6px 10px;
-    font-size: 14px;
-    background-position: right 8px center;
-    padding-right: 28px;
+    font-size: 13px;
+    background-position: right 6px center;
+    padding-right: 24px;
+    max-width: 140px;
   }
 
   .date-input {
+    font-size: 11px;
+    padding: 4px 6px;
+    max-width: 120px;
+  }
+
+  .admin-header-class {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  /* Compact Stats for mobile */
+  .risk-card-stats {
+    gap: 10px;
+    margin-top: 6px;
+    padding-top: 6px;
+  }
+
+  .stat-item {
+    gap: 3px;
+  }
+
+  .stat-label {
+    display: none; /* Hide 'Media:', 'Volontari:' labels on small mobile */
+  }
+
+  .stat-item::before {
     font-size: 12px;
-    padding: 4px 8px;
+    margin-right: 2px;
+  }
+
+  .stat-item:nth-child(1)::before { content: "📈"; }
+  .stat-item:nth-child(2)::before { content: "🙋"; }
+  .stat-item:nth-child(3)::before { content: "❌"; }
+
+  .stat-value {
+    font-size: 12px;
+  }
+
+  /* Logout button optimization */
+  .btn-logout {
+    padding: 6px 10px;
+    font-size: 11px;
+    flex-shrink: 0;
+    margin-left: auto;
   }
 
   /* Optimize Risk Card layout for vertical space */
