@@ -76,9 +76,9 @@ const App = (() => {
     document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(el => el.classList.remove('active'));
     document.querySelectorAll(`[data-route="${route}"]`).forEach(el => el.classList.add('active'));
 
-    // Hide/Show Admin nav item based on role
+    // Hide/Show Admin nav item based on role (Admin or Class Admin)
     const adminNav = document.querySelectorAll('[data-route="admin"]');
-    adminNav.forEach(el => el.style.display = session.user.role === 'admin' ? 'block' : 'none');
+    adminNav.forEach(el => el.style.display = (session.user.role === 'admin' || session.user.role === 'class_admin') ? 'flex' : 'none');
 
     main.innerHTML = '';
 
@@ -313,26 +313,8 @@ const App = (() => {
 
     if (!renderStudentSelector(container, () => renderDashboard(container))) return;
 
-    // Mode toggle
-    const toggle = document.createElement('div');
-    toggle.className = 'toggle-bar';
-    toggle.innerHTML = `
-      <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily" > MATERIE(Domani)</button>
-      <button class="toggle-btn ${dashboardMode === 'weekly' ? 'active' : ''}" data-mode="weekly">Calendario</button>
-    `;
-    container.appendChild(toggle);
-    toggle.querySelectorAll('.toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        dashboardMode = btn.dataset.mode;
-        renderDashboard(container);
-      });
-    });
-
-    if (dashboardMode === 'daily') {
-      renderRiskDashboard(container);
-    } else {
-      renderWeeklyDashboard(container);
-    }
+    // Always show the daily subject list (Materie)
+    renderRiskDashboard(container);
   }
 
   function renderRiskDashboard(container) {
@@ -352,7 +334,19 @@ const App = (() => {
     const grid = document.createElement('div');
     grid.className = 'cards-grid';
 
-    for (const item of results) {
+    // Mostra solo le materie effettivamente in orario per quella giornata
+    const scheduledOnly = results.filter(item => item.status !== 'not-scheduled' && item.status !== 'vacation');
+
+    if (scheduledOnly.length === 0) {
+      container.innerHTML += `
+        <div class="empty-state small">
+          <p style="color:#8E99A4;">Nessuna materia in orario per questa data.</p>
+        </div>
+      `;
+      return;
+    }
+
+    for (const item of scheduledOnly) {
       const card = createRiskCard(item);
       card.addEventListener('click', () => {
         location.hash = `subject/${item.subjectId}`;
@@ -1118,6 +1112,27 @@ const App = (() => {
       });
     });
 
+    // Edit student logic
+    container.querySelectorAll('.edit-student-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = parseInt(btn.dataset.id);
+        const student = DB.getStudent(id);
+        const firstName = prompt('Nome:', student.firstName);
+        if (firstName === null) return;
+        const lastName = prompt('Cognome:', student.lastName);
+        if (lastName === null) return;
+        const password = prompt('Password:', student.password || '1234');
+        if (password === null) return;
+
+        await DB.updateStudent(id, {
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          password: password.trim()
+        });
+        renderAdminStudents(container);
+      });
+    });
+
     // No Religione flag
     container.querySelectorAll('.noreligion-checkbox').forEach(chk => {
       chk.addEventListener('change', async () => {
@@ -1212,18 +1227,41 @@ const App = (() => {
       });
     });
 
-    // Edit subject name
+    // Modifica materia in linea
     container.querySelectorAll('.edit-subject-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', () => {
         const id = parseInt(btn.dataset.id);
         const subject = DB.getSubject(id);
-        if (!subject) return;
+        const teachers = DB.getTeachers();
+        const row = btn.closest('.admin-list-item');
 
-        const newName = prompt('Modifica nome materia:', subject.name);
-        if (newName && newName.trim() !== '' && newName !== subject.name) {
-          await DB.updateSubject(id, { name: newName.trim() });
-          renderAdminSubjects(container);
-        }
+        row.innerHTML = `
+          <div class="admin-item-info" style="flex:1;">
+            <input type="text" class="edit-name-inp" value="${subject.name}" style="font-size:13px; padding:4px; margin-bottom:4px; width:100%;">
+            <select class="edit-teacher-sel" style="font-size:11px; padding:2px; width:100%;">
+              <option value="">Nessun docente</option>
+              ${teachers.map(t => `<option value="${t.id}" ${t.id === subject.teacherId ? 'selected' : ''}>${t.name}</option>`).join('')}
+            </select>
+          </div>
+          <div class="admin-item-actions">
+            <button class="btn btn-primary btn-xs save-btn">✅</button>
+            <button class="btn btn-secondary btn-xs cancel-btn">❌</button>
+          </div>
+        `;
+
+        row.querySelector('.save-btn').addEventListener('click', async () => {
+          const name = row.querySelector('.edit-name-inp').value.trim();
+          const tId = row.querySelector('.edit-teacher-sel').value;
+          if (name) {
+            await DB.updateSubject(id, {
+              name,
+              teacherId: tId ? parseInt(tId) : null
+            });
+            renderAdminSubjects(container);
+          }
+        });
+
+        row.querySelector('.cancel-btn').addEventListener('click', () => renderAdminSubjects(container));
       });
     });
 
