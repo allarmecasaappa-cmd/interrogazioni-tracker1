@@ -449,7 +449,7 @@ const App = (() => {
 
     const subject = DB.getSubject(subjectId);
     if (!subject) {
-      container.innerHTML += '<div class="card"><p>Subject not found.</p></div>';
+      container.innerHTML += '<div class="card"><p>Materia non trovata.</p></div>';
       return;
     }
 
@@ -486,7 +486,7 @@ const App = (() => {
     const stats = RiskCalculator.classStats(subjectId, selectedDate);
     statsSection.innerHTML = `
       <div class="expandable-header" id="toggle-stats">
-        <h3>Class Statistics</h3>
+        <h3>Statistiche Classe</h3>
         <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
       <div class="expandable-content" id="stats-content" style="display:none;">
@@ -522,8 +522,8 @@ const App = (() => {
     const historySection = document.createElement('div');
     historySection.className = 'card';
     historySection.innerHTML = `
-      <h3>Your Interrogation History</h3>
-    ${history.length === 0 ? '<p class="empty-text">No interrogations yet in this subject.</p>' :
+      <h3>Il tuo storico interrogazioni</h3>
+    ${history.length === 0 ? '<p class="empty-text">Ancora nessuna interrogazione in questa materia.</p>' :
         `<div class="history-list">${history.map(h => `
           <div class="history-item">
             <div class="history-date">${formatDate(h.date)}</div>
@@ -545,7 +545,7 @@ const App = (() => {
       allSection.className = 'card expandable-section';
       allSection.innerHTML = `
         <div class="expandable-header" id = "toggle-all" >
-          <h3>Recent Class Interrogations</h3>
+          <h3>Ultime Interrogazioni Classe</h3>
           <svg class="expand-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
         </div>
         <div class="expandable-content" id="all-content" style="display:none;">
@@ -1241,10 +1241,10 @@ const App = (() => {
     const teachers = DB.getTeachers();
     container.innerHTML = `
       <div class="card admin-card">
-        <h3>Teachers (${teachers.length})</h3>
+        <h3>Docenti (${teachers.length})</h3>
         <form id="add-teacher-form" class="admin-inline-form">
-          <input type="text" name="name" placeholder="Teacher full name" required>
-          <button type="submit" class="btn btn-primary btn-sm">Add</button>
+          <input type="text" name="name" placeholder="Nome completo docente" required>
+          <button type="submit" class="btn btn-primary btn-sm">Aggiungi</button>
         </form>
         <div class="admin-list">
           ${teachers.map(t => `
@@ -1300,7 +1300,7 @@ const App = (() => {
 
     container.innerHTML = `
       <div class="card admin-card">
-        <h3>Weekly Schedule</h3>
+        <h3>Orario (${schedule.length} voci)</h3>
         
         <div class="admin-setting-row" style="margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee;">
           <label>Giorni di scuola:</label>
@@ -1371,7 +1371,7 @@ const App = (() => {
     const vacations = DB.getVacations().sort((a, b) => a.date.localeCompare(b.date));
     container.innerHTML = `
       <div class="card admin-card">
-        <h3>Vacation Days (${vacations.length})</h3>
+        <h3>Giorni di Vacanza (${vacations.length})</h3>
         <form id="add-vacation-form" class="admin-inline-form">
           <input type="date" name="startDate" title="Dal" required>
           <span style="font-size: 13px; color: #8E99A4; display: flex; align-items: center;">-</span>
@@ -1443,7 +1443,7 @@ const App = (() => {
 
     container.innerHTML = `
       <div class="card admin-card">
-        <h3>Interrogations (showing latest 100)</h3>
+        <h3>Interrogazioni (ultime 100)</h3>
         <form id="add-interrog-form" class="admin-inline-form">
           <select name="studentId" required>
             <option value="">Student...</option>
