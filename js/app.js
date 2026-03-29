@@ -778,7 +778,7 @@ const App = (() => {
             : '<div style="font-size: 11px; font-weight: 600; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid rgba(255,255,255,0.4); background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">Capoclasse</div>'
           }
         </div>
-        <div class="admin-header-tabs">
+        <div class="admin-tabs">
           ${session.user.role === 'admin' ? '<button class="admin-tab" data-tab="accessi">Accessi</button>' : ''}
           ${session.user.role === 'admin' ? '<button class="admin-tab active" data-tab="classes">Classi</button>' : ''}
           <button class="admin-tab ${session.user.role !== 'admin' ? 'active' : ''}" data-tab="students">Studenti</button>
@@ -787,6 +787,8 @@ const App = (() => {
           <button class="admin-tab" data-tab="schedule">Orario</button>
           <button class="admin-tab" data-tab="vacations">Vacanze</button>
           <button class="admin-tab" data-tab="interrogations">Interr.</button>
+          <button class="admin-tab" data-tab="absences">Assenze</button>
+          <button class="admin-tab" data-tab="volunteers">Volontari</button>
           <button class="admin-tab" data-tab="sim">Simulazione</button>
           <button class="admin-tab" data-tab="reset">Reset</button>
         </div>
@@ -811,6 +813,8 @@ const App = (() => {
         case 'schedule': renderAdminSchedule(content); break;
         case 'vacations': renderAdminVacations(content); break;
         case 'interrogations': renderAdminInterrogations(content); break;
+        case 'absences': renderAdminAbsences(content); break;
+        case 'volunteers': renderAdminVolunteers(content); break;
         case 'sim': renderAdminSimulation(content); break;
         case 'reset': renderAdminReset(content); break;
       }
