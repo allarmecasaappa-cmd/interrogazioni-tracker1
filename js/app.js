@@ -25,6 +25,14 @@ const App = (() => {
     // Recover session
     const session = DB.getSession();
     if (session.isLoggedIn) {
+      // Security/Consistency check: if student or class_admin, their class is fixed.
+      // If the localStorage had a different class (e.g. they previously logged in as someone else),
+      // we must force the system to load the correct class data for them.
+      if (session.user.role !== 'admin' && session.user.classId && session.user.classId !== DB.getCurrentClassId()) {
+        localStorage.setItem('currentClassId', session.user.classId);
+        await DB.setClassId(session.user.classId);
+      }
+
       currentStudentId = session.user.role === 'student' ? session.user.id : (parseInt(localStorage.getItem('selectedStudentId')) || null);
     }
 
@@ -40,6 +48,15 @@ const App = (() => {
     if (!session.isLoggedIn) {
       renderLogin(main);
       return;
+    }
+
+    // Verify user still exists in DB
+    if (session.user.role === 'student' || session.user.role === 'class_admin') {
+      const studentExists = DB.getStudent(session.user.id);
+      if (!studentExists) {
+        DB.logout();
+        return;
+      }
     }
 
     const hash = location.hash.slice(1) || 'dashboard';
@@ -197,7 +214,10 @@ const App = (() => {
     // Students don't see the selector (they are fixed)
     if (session.user.role === 'student') {
       const student = DB.getStudent(session.user.id);
-      if (!student) return false;
+      if (!student) {
+        DB.logout();
+        return false;
+      }
 
       const header = document.createElement('div');
       header.className = 'student-header student-view-only';
@@ -219,7 +239,7 @@ const App = (() => {
     }
 
     // Auto-select if not set
-    if (session.user.role === 'admin') {
+    if (session.user.role === 'admin' || session.user.role === 'class_admin') {
       const students = DB.getStudents();
       if (students.length === 0) {
         container.innerHTML = `
@@ -737,6 +757,7 @@ const App = (() => {
 
     container.innerHTML = `
         <div class="admin-header-tabs">
+          ${session.user.role === 'admin' ? '<button class="admin-tab" data-tab="accessi">Accessi</button>' : ''}
           ${session.user.role === 'admin' ? '<button class="admin-tab active" data-tab="classes">Classi</button>' : ''}
           <button class="admin-tab ${session.user.role !== 'admin' ? 'active' : ''}" data-tab="students">Studenti</button>
           <button class="admin-tab" data-tab="subjects">Materie</button>
@@ -762,6 +783,7 @@ const App = (() => {
       switch (tab) {
         case 'students': renderAdminStudents(content); break;
         case 'classes': renderAdminClasses(content); break;
+        case 'accessi': renderAdminAccessi(content); break;
         case 'subjects': renderAdminSubjects(content); break;
         case 'teachers': renderAdminTeachers(content); break;
         case 'schedule': renderAdminSchedule(content); break;
@@ -859,6 +881,33 @@ const App = (() => {
         }
       });
     });
+  }
+
+  async function renderAdminAccessi(container) {
+    container.innerHTML = `<div class="card admin-card"><p>Caricamento dati accessi...</p></div>`;
+    const logins = await DB.getAdminLogins();
+
+    container.innerHTML = `
+      <div class="card admin-card">
+        <h3>Ultimi Accessi Amministratore (MAX 10)</h3>
+        <p class="admin-hint">Verifica chi è entrato come amministratore globale di recente per monitorare la sicurezza.</p>
+        <div class="admin-list scrollable" style="max-height: 400px; overflow-y: auto;">
+          ${logins.length === 0 ? '<p class="empty-text">Nessun accesso registrato.</p>' :
+        logins.map(l => {
+          const d = new Date(l.attempted_at);
+          const dateStr = d.toLocaleDateString('it-IT') + ' ' + d.toLocaleTimeString('it-IT');
+          const info = l.device_info ? l.device_info : 'Dispositivo sconosciuto';
+
+          return `
+              <div class="admin-list-item" style="display: flex; flex-direction: column; align-items: flex-start; padding: 12px;">
+                <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: #1A1A2E;">Data: ${dateStr}</div>
+                <div style="font-size: 12px; color: #8E99A4; word-break: break-all;">Info: ${info}</div>
+              </div>
+            `}).join('')
+      }
+        </div>
+      </div>
+    `;
   }
 
   function renderAdminStudents(container) {
@@ -1426,24 +1475,29 @@ const App = (() => {
   }
 
   function renderAdminReset(container) {
+    const session = DB.getSession();
+    const isGlobalAdmin = session.user.role === 'admin';
+
     container.innerHTML = `
       <div class="card admin-card reset-card">
         <h3>Reset Data</h3>
         <div class="reset-section">
           <h4>Selective Reset</h4>
-          <p class="admin-hint">Delete all records of a specific type.</p>
+          <p class="admin-hint">Delete all records of a specific type (limitato alla classe).</p>
           <div class="reset-buttons">
             ${['students', 'subjects', 'teachers', 'schedule', 'interrogations', 'absences', 'volunteers', 'vacations'].map(entity => `
               <button class="btn btn-secondary btn-sm" data-reset="${entity}">Reset ${entity}</button>
             `).join('')}
           </div>
         </div>
+        ${isGlobalAdmin ? `
         <hr>
         <div class="reset-section danger">
           <h4>Full Database Reset</h4>
           <p class="admin-hint">This will permanently delete ALL data. This action cannot be undone.</p>
           <button id="reset-all-btn" class="btn btn-danger">Reset Entire Database</button>
         </div>
+        ` : ''}
       </div>
     `;
 
@@ -1463,14 +1517,16 @@ const App = (() => {
       });
     });
 
-    container.querySelector('#reset-all-btn').addEventListener('click', async () => {
-      if (!confirm('Are you sure you want to reset the ENTIRE database?')) return;
-      if (!confirm('This is your FINAL confirmation. All data will be permanently deleted. Proceed?')) return;
-      await DB.resetAll();
-      alert('Database has been reset.');
-      location.hash = 'admin';
-      renderAdmin(document.getElementById('main-content'));
-    });
+    if (isGlobalAdmin) {
+      container.querySelector('#reset-all-btn')?.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to reset the ENTIRE database?')) return;
+        if (!confirm('This is your FINAL confirmation. All data will be permanently deleted. Proceed?')) return;
+        await DB.resetAll();
+        alert('Database has been reset.');
+        location.hash = 'admin';
+        renderAdmin(document.getElementById('main-content'));
+      });
+    }
   }
 
   // ---- Utility Functions ----
