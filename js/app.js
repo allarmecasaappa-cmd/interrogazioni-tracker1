@@ -527,6 +527,21 @@ const App = (() => {
       </div>
       <div class="risk-detail-explanation">${riskResult.explanation}</div>
       <div class="risk-detail-status">${formatStatus(riskResult.status)}</div>
+      
+      <div class="risk-card-stats" style="margin-top: 24px; border-top: 1px dashed #E8EAED; padding-top: 16px;">
+        <div class="stat-item" title="Media interrogazioni previste al giorno">
+          <span class="stat-label">Media:</span>
+          <span class="stat-value" style="font-size: 15px;">${riskResult.avgDaily || 0}</span>
+        </div>
+        <div class="stat-item" title="Studenti volontari oggi">
+          <span class="stat-label">Volontari:</span>
+          <span class="stat-value" style="font-size: 15px;">${riskResult.volunteerCount || 0}</span>
+        </div>
+        <div class="stat-item" title="Studenti assenti oggi">
+          <span class="stat-label">Assenti:</span>
+          <span class="stat-value" style="font-size: 15px;">${riskResult.absentCount || 0}</span>
+        </div>
+      </div>
     `;
     container.appendChild(riskCard);
 
