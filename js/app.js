@@ -1092,7 +1092,7 @@ const App = (() => {
                 </div>
               </div>
               <div class="admin-item-actions">
-                <button class="btn btn-secondary btn-xs edit-student-btn">Modifica</button>
+                <button class="btn btn-secondary btn-xs edit-student-btn" data-id="${s.id}">Modifica</button>
                 <button class="btn btn-danger btn-xs" data-delete="${s.id}">Elimina</button>
               </div>
             </div>
