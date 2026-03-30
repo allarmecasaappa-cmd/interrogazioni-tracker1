@@ -1445,6 +1445,7 @@ body {
   /* Hide main items from sidebar when on mobile (they are in bottom nav) */
   .sidebar [data-route="dashboard"],
   .sidebar [data-route="registra"],
+  .sidebar [data-route="calendar"],
   .sidebar [data-route="history"] {
     display: none;
   }
@@ -1452,6 +1453,13 @@ body {
   /* Remove divider if everything above it is hidden */
   .sidebar .nav-divider {
     display: none;
+  }
+
+  .week-navigation-header {
+    background: #FFFFFF;
+    padding: 12px 16px;
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
   }
 
   .week-grid {

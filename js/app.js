@@ -4,7 +4,7 @@
 const App = (() => {
   let currentStudentId = null;
   let currentView = 'dashboard';
-  let dashboardMode = 'daily'; // 'daily' | 'weekly'
+  let dashboardMode = localStorage.getItem('dashboardMode') || 'daily'; // 'daily' | 'weekly'
   let selectedDate = RiskCalculator.getNextSchoolDay(DB.formatDateISO());
 
   async function init() {
@@ -85,6 +85,9 @@ const App = (() => {
     switch (route) {
       case 'dashboard':
         renderDashboard(main);
+        break;
+      case 'calendar':
+        renderCalendar(main);
         break;
       case 'subject':
         renderSubjectDetail(main, parseInt(parts[1]));
@@ -306,15 +309,40 @@ const App = (() => {
     return true;
   }
 
-  // ---- Dashboard ----
+  // ---- Dashboard (Daily vs Weekly) ----
   function renderDashboard(container) {
     container.innerHTML = '';
     updateClassSelectorUI();
 
     if (!renderStudentSelector(container, () => renderDashboard(container))) return;
 
-    // Always show the daily subject list (Materie)
-    renderRiskDashboard(container);
+    // Toggle bar (Daily vs Weekly)
+    const toggleContainer = document.createElement('div');
+    toggleContainer.className = 'toggle-bar';
+    toggleContainer.innerHTML = `
+      <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily">Oggi</button>
+      <button class="toggle-btn ${dashboardMode === 'weekly' ? 'active' : ''}" data-mode="weekly">Settimana</button>
+    `;
+    container.appendChild(toggleContainer);
+
+    toggleContainer.querySelectorAll('.toggle-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        dashboardMode = btn.dataset.mode;
+        localStorage.setItem('dashboardMode', dashboardMode);
+        renderDashboard(container);
+      });
+    });
+
+    if (dashboardMode === 'daily') {
+      renderRiskDashboard(container);
+    } else {
+      renderWeeklyDashboard(container);
+    }
+  }
+
+  function renderCalendar(container) {
+    dashboardMode = 'weekly';
+    renderDashboard(container);
   }
 
   function renderRiskDashboard(container) {
@@ -360,6 +388,42 @@ const App = (() => {
     const weekData = RiskCalculator.calculateWeekly(currentStudentId, selectedDate);
     const dayNames = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
     const dates = RiskCalculator.getWeekDates(selectedDate);
+    const formatDateShort = (d) => {
+      const parts = d.split('-');
+      return `${parts[2]}/${parts[1]}`;
+    };
+
+    // Week navigation header
+    const weekNav = document.createElement('div');
+    weekNav.className = 'week-navigation-header';
+    weekNav.style.display = 'flex';
+    weekNav.style.justifyContent = 'space-between';
+    weekNav.style.alignItems = 'center';
+    weekNav.style.marginBottom = '16px';
+    weekNav.style.padding = '0 4px';
+
+    const prevDate = new Date(selectedDate + 'T00:00:00');
+    prevDate.setDate(prevDate.getDate() - 7);
+    const nextDate = new Date(selectedDate + 'T00:00:00');
+    nextDate.setDate(nextDate.getDate() + 7);
+
+    weekNav.innerHTML = `
+      <button class="btn btn-secondary btn-sm" id="prev-week-btn">← Sett. Prec.</button>
+      <div style="font-weight:700; font-size:14px; color:#1A1A2E;">
+        ${formatDateShort(dates[0])} — ${formatDateShort(dates[dates.length - 1])}
+      </div>
+      <button class="btn btn-secondary btn-sm" id="next-week-btn">Sett. Succ. →</button>
+    `;
+    container.appendChild(weekNav);
+
+    weekNav.querySelector('#prev-week-btn').addEventListener('click', () => {
+      selectedDate = DB.formatDateISO(prevDate);
+      renderDashboard(container);
+    });
+    weekNav.querySelector('#next-week-btn').addEventListener('click', () => {
+      selectedDate = DB.formatDateISO(nextDate);
+      renderDashboard(container);
+    });
 
     const weekGrid = document.createElement('div');
     weekGrid.className = 'week-grid';
@@ -367,10 +431,10 @@ const App = (() => {
 
     dates.forEach((date, idx) => {
       const dayCol = document.createElement('div');
-      dayCol.className = 'week-day-column';
+      dayCol.className = `week-day-column ${date === DB.formatDateISO() ? 'today' : ''}`;
       const isToday = date === DB.formatDateISO();
 
-      dayCol.innerHTML = `<div class="week-day-header ${isToday ? 'today' : ''}" > ${dayNames[idx]}</div> `;
+      dayCol.innerHTML = `<div class="week-day-header ${isToday ? 'today' : ''}" > ${dayNames[idx]} <span class="week-date">${formatDateShort(date)}</span></div> `;
 
       const items = weekData[date] || [];
       if (items.length === 0) {
@@ -582,6 +646,7 @@ const App = (() => {
 
   // ---- Registra (Unified Action Center) ----
   function renderRegistra(container) {
+    const session = DB.getSession();
     container.innerHTML = '';
     updateClassSelectorUI();
     if (!renderStudentSelector(container, () => renderRegistra(container))) return;
@@ -604,6 +669,14 @@ const App = (() => {
       <h2>Registra Interrogazione</h2>
       <p class="form-hint">Inserisci i dettagli dell'interrogazione avvenuta.</p>
       <form id="interrog-form">
+        ${(session.user.role === 'admin' || session.user.role === 'class_admin') ? `
+          <div class="form-group">
+            <label>Studente</label>
+            <select name="studentId" required>
+              ${DB.getStudents().map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
+            </select>
+          </div>
+        ` : ''}
         <div class="form-group">
           <label>Materia</label>
           <select name="subjectId" required>
@@ -629,7 +702,7 @@ const App = (() => {
       e.preventDefault();
       const form = e.target;
       const data = {
-        studentId: currentStudentId,
+        studentId: form.studentId ? parseInt(form.studentId.value) : currentStudentId,
         subjectId: parseInt(form.subjectId.value),
         date: form.date.value,
         grade: form.grade.value ? parseFloat(form.grade.value) : null
@@ -647,81 +720,90 @@ const App = (() => {
       }
     });
 
-    // --- Side Column: Absence & Volunteer (Unified) ---
+    // --- Side Column: Absence & Volunteer ---
     const sideCol = document.createElement('div');
     sideCol.className = 'registra-side';
     layout.appendChild(sideCol);
 
-    const schoolDays = DB.getConfig().schoolDays || 5;
-    const secondaryCard = document.createElement('div');
-    secondaryCard.className = 'card form-card secondary-action';
-    secondaryCard.innerHTML = `
-      <h3>Assenza / Volontario</h3>
-      <p class="form-hint small">Applica alla settimana selezionata.</p>
-      <form id="secondary-form">
-        <div class="form-group">
-          <label>Materia</label>
-          <select name="subjectId" required>
-            <option value="full">Intera Giornata (Assenza)</option>
-            ${subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Giorno</label>
-          <select name="dayOfWeek" required>
-            ${['Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'].slice(0, schoolDays).map((day, idx) => `
-              <option value="${idx}">${day}</option>
-            `).join('')}
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Azione</label>
-          <select name="actionType" required>
-            <option value="absence">Assente</option>
-            <option value="volunteer">Volontario</option>
-          </select>
-        </div>
-        <button type="submit" class="btn btn-secondary btn-block">Salva</button>
-        <div id="secondary-msg" class="form-message"></div>
+    const absenceCard = document.createElement('div');
+    absenceCard.className = 'card form-card secondary-action';
+    absenceCard.innerHTML = `
+      <h3>Segnala Assenza</h3>
+      <p class="form-hint">Lo studente non sarà contato nel rischio per oggi.</p>
+      <form id="absence-form">
+        ${(session.user.role === 'admin' || session.user.role === 'class_admin') ? `
+          <div class="form-group">
+            <select name="studentId" required style="margin-bottom: 8px;">
+              ${DB.getStudents().map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
+            </select>
+          </div>
+        ` : ''}
+        <button type="submit" class="btn btn-secondary btn-block">Registra Assenza per Oggi</button>
+        <div id="absence-msg" class="form-message"></div>
       </form>
     `;
-    sideCol.appendChild(secondaryCard);
+    sideCol.appendChild(absenceCard);
 
-    secondaryCard.querySelector('#secondary-form').addEventListener('submit', async (e) => {
+    absenceCard.querySelector('#absence-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
-      const weekDates = RiskCalculator.getWeekDates(selectedDate);
-      const targetDate = weekDates[parseInt(form.dayOfWeek.value)];
-      const actionType = form.actionType.value;
-      const subjIdRaw = form.subjectId.value;
-      const subjectId = subjIdRaw === 'full' ? null : parseInt(subjIdRaw);
-
-      let result;
-      if (actionType === 'absence') {
-        result = await DB.addAbsence({
-          studentId: currentStudentId,
-          date: targetDate,
-          subjectId: subjectId
-        });
-      } else {
-        if (subjectId === null) {
-          result = { error: 'Seleziona una materia specifica per il volontario' };
-        } else {
-          result = await DB.addVolunteer({
-            studentId: currentStudentId,
-            subjectId: subjectId,
-            date: targetDate
-          });
-        }
-      }
-
-      const msg = secondaryCard.querySelector('#secondary-msg');
+      const sId = form.studentId ? parseInt(form.studentId.value) : currentStudentId;
+      const result = await DB.addAbsence({
+        studentId: sId,
+        date: selectedDate
+      });
+      const msg = absenceCard.querySelector('#absence-msg');
       if (result.error) {
         msg.className = 'form-message error';
         msg.textContent = result.error;
       } else {
         msg.className = 'form-message success';
-        msg.textContent = 'Registrazione salvata con successo.';
+        msg.textContent = 'Assenza registrata.';
+      }
+    });
+
+    const volunteerCard = document.createElement('div');
+    volunteerCard.className = 'card form-card secondary-action';
+    volunteerCard.innerHTML = `
+      <h3>Registra Volontario</h3>
+      <p class="form-hint">Reset del ciclo interrogazioni per lo studente.</p>
+      <form id="volunteer-form">
+        ${(session.user.role === 'admin' || session.user.role === 'class_admin') ? `
+          <div class="form-group">
+            <select name="studentId" required style="margin-bottom: 8px;">
+              ${DB.getStudents().map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
+            </select>
+          </div>
+        ` : ''}
+        <div class="form-group">
+          <select name="subjectId" required>
+            <option value="">Seleziona materia...</option>
+            ${subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
+          </select>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-block">Registra Volontario</button>
+        <div id="volunteer-msg" class="form-message"></div>
+      </form>
+    `;
+    sideCol.appendChild(volunteerCard);
+
+    volunteerCard.querySelector('#volunteer-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+      const sId = form.studentId ? parseInt(form.studentId.value) : currentStudentId;
+      const result = await DB.addInterrogation({
+        studentId: sId,
+        subjectId: parseInt(form.subjectId.value),
+        date: selectedDate,
+        isVolunteer: true
+      });
+      const msg = volunteerCard.querySelector('#volunteer-msg');
+      if (result.error) {
+        msg.className = 'form-message error';
+        msg.textContent = result.error;
+      } else {
+        msg.className = 'form-message success';
+        msg.textContent = 'Volontario registrato.';
       }
     });
   }
@@ -802,8 +884,10 @@ const App = (() => {
           <button class="admin-tab" data-tab="interrogations">Interr.</button>
           <button class="admin-tab" data-tab="absences">Assenze</button>
           <button class="admin-tab" data-tab="volunteers">Volontari</button>
-          <button class="admin-tab" data-tab="sim">Simulazione</button>
-          <button class="admin-tab" data-tab="reset">Reset</button>
+          ${session.user.role === 'admin' ? `
+            <button class="admin-tab" data-tab="sim">Simulazione</button>
+            <button class="admin-tab" data-tab="reset">Reset</button>
+          ` : ''}
         </div>
         <div id="admin-tab-content"></div>
       `;
