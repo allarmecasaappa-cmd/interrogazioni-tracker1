@@ -86,9 +86,6 @@ const App = (() => {
       case 'dashboard':
         renderDashboard(main);
         break;
-      case 'calendar':
-        renderCalendar(main);
-        break;
       case 'subject':
         renderSubjectDetail(main, parseInt(parts[1]));
         break;
@@ -338,11 +335,6 @@ const App = (() => {
     } else {
       renderWeeklyDashboard(container);
     }
-  }
-
-  function renderCalendar(container) {
-    dashboardMode = 'weekly';
-    renderDashboard(container);
   }
 
   function renderRiskDashboard(container) {

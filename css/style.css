@@ -1445,7 +1445,6 @@ body {
   /* Hide main items from sidebar when on mobile (they are in bottom nav) */
   .sidebar [data-route="dashboard"],
   .sidebar [data-route="registra"],
-  .sidebar [data-route="calendar"],
   .sidebar [data-route="history"] {
     display: none;
   }
