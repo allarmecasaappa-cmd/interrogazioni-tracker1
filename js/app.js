@@ -601,9 +601,9 @@ const App = (() => {
     const riskCard = document.createElement('div');
     riskCard.className = `card risk-detail-card risk-${getRiskLevel(riskResult.risk)} `;
     riskCard.innerHTML = `
-      <div class="risk-detail-header" >
-        <h2>${subject.name}</h2>
-        ${teacher ? `<p class="risk-detail-teacher">${RiskCalculator.getSurname(teacher.name)}</p>` : ''}
+      <div class="risk-detail-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <h2 style="margin: 0; font-size: 20px; color: var(--text-primary);">${subject.name}</h2>
+        ${teacher ? `<span class="risk-detail-teacher" style="color: #6B7280; font-size: 13px; font-weight: 600; background: #F3F4F6; padding: 4px 10px; border-radius: 20px;">👤 ${RiskCalculator.getSurname(teacher.name)}</span>` : ''}
       </div>
       <div class="risk-detail-value">
         <span class="risk-big-number">${Math.round(riskResult.risk)}</span>
