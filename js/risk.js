@@ -56,7 +56,11 @@ const RiskCalculator = (() => {
             interrogatedList = interrogatedList.slice(toRemove);
         }
 
-        return new Set(interrogatedList.map(entry => entry[0]));
+        const wasResetted = interrogatedList.length < studentLastDate.size;
+        return { 
+            effectiveI: new Set(interrogatedList.map(entry => entry[0])), 
+            isCycleRestart: wasResetted 
+        };
     }
 
     /**
@@ -135,7 +139,7 @@ const RiskCalculator = (() => {
         }
 
         // Compute effective I — only from the eligible pool, with cycle adjustment
-        const effectiveI = computeCycleAdjustedI({ subjectId, N: N_eligible, data, eligibleStudentIds });
+        const { effectiveI, isCycleRestart } = computeCycleAdjustedI({ subjectId, N: N_eligible, data, eligibleStudentIds });
 
         // Students interrogated on this specific date
         const interrogatedToday = new Set(
@@ -198,7 +202,7 @@ const RiskCalculator = (() => {
         risk = Math.max(0, Math.min(100, risk));
         risk = Math.round(risk * 10) / 10;
 
-        const explanation = `${Slot} slot per ${E} studenti eleggibili (I=${I} dopo ciclo)`;
+        const explanation = `${Slot} slot per ${E} studenti eleggibili (Int=${I}${isCycleRestart ? ' dopo ciclo' : ''})`;
 
         return { 
             risk, 

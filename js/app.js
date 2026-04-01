@@ -370,7 +370,11 @@ const App = (() => {
       }
     } catch (e) {
       console.error('Dashboard rendering error:', e);
-      container.innerHTML = `<div class="card error-state" style="text-align:center;padding:40px 20px;"><h3>Errore durante il caricamento</h3><p>${e.message}</p></div>`;
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'card error-state';
+      errorDiv.style.cssText = 'text-align:center;padding:40px 20px;';
+      errorDiv.innerHTML = `<h3>Errore durante il caricamento</h3><p>${e.message}</p>`;
+      container.appendChild(errorDiv);
     }
   }
 
@@ -385,15 +389,16 @@ const App = (() => {
         // Is the whole day a vacation?
         const isVacation = results.some(item => item.status === 'vacation');
         
-        container.innerHTML += `
-          <div class="empty-state small">
-            <div class="empty-icon" style="font-size: 48px; margin-bottom: 12px;">${isVacation ? '🏖️' : '🕒'}</div>
-            <p style="color:#8E99A4; font-weight:600;">
-              ${isVacation ? 'Oggi è un giorno di vacanza.' : 'Nessuna materia in orario per questa data.'}
-            </p>
-            <p style="color:#B0B8C1; font-size: 13px; margin-top: 4px;">Pianifica il tuo studio per il prossimo giorno scolastico.</p>
-          </div>
+        const emptyState = document.createElement('div');
+        emptyState.className = 'empty-state small';
+        emptyState.innerHTML = `
+          <div class="empty-icon" style="font-size: 48px; margin-bottom: 12px;">${isVacation ? '🏖️' : '🕒'}</div>
+          <p style="color:#8E99A4; font-weight:600;">
+            ${isVacation ? 'Oggi è un giorno di vacanza.' : 'Nessuna materia in orario per questa data.'}
+          </p>
+          <p style="color:#B0B8C1; font-size: 13px; margin-top: 4px;">Pianifica il tuo studio per il prossimo giorno scolastico.</p>
         `;
+        container.appendChild(emptyState);
         return;
       }
 
@@ -410,7 +415,10 @@ const App = (() => {
       container.appendChild(grid);
     } catch (e) {
       console.error('Daily dashboard error:', e);
-      container.innerHTML += `<div class="card error-state"><h3>Errore calcolo rischio giornaliero</h3><p>${e.message}</p></div>`;
+      const errorDiv = document.createElement('div');
+      errorDiv.className = 'card error-state';
+      errorDiv.innerHTML = `<h3>Errore calcolo rischio giornaliero</h3><p>${e.message}</p>`;
+      container.appendChild(errorDiv);
     }
   }
 
@@ -422,12 +430,12 @@ const App = (() => {
       console.log("Week dates:", dates);
 
       if (!dates || dates.length === 0) {
-        container.innerHTML += `
+        container.insertAdjacentHTML('beforeend', `
           <div class="empty-state small" style="padding:40px 20px; text-align:center;">
             <div style="font-size:48px;margin-bottom:12px;">📅</div>
             <p style="color:#8E99A4;">Nessun giorno scolastico configurato per questa classe.</p>
             <a href="#admin" class="btn btn-secondary btn-sm" style="margin-top:12px;">Configura in Admin</a>
-          </div>`;
+          </div>`);
         return;
       }
 
@@ -498,9 +506,9 @@ const App = (() => {
         }
 
         if (isVacation) {
-          dayCol.innerHTML += `<div class="week-empty holiday" style="color:#6A1B9A; background:#F3E5F5; border-radius:12px; font-weight:600; font-size:10px; padding:10px 5px; text-align:center; margin:6px;">🏖️ VACANZA</div>`;
+          dayCol.insertAdjacentHTML('beforeend', `<div class="week-empty holiday" style="color:#6A1B9A; background:#F3E5F5; border-radius:12px; font-weight:600; font-size:10px; padding:10px 5px; text-align:center; margin:6px;">🏖️ VACANZA</div>`);
         } else if (items.length === 0) {
-          dayCol.innerHTML += `<div class="week-empty" style="font-size:10px; color:#B0B8C1; text-align:center; padding:16px 0;">Nessuna lezione</div>`;
+          dayCol.insertAdjacentHTML('beforeend', `<div class="week-empty" style="font-size:10px; color:#B0B8C1; text-align:center; padding:16px 0;">Nessuna lezione</div>`);
         } else {
           for (const item of items) {
             const mini = document.createElement('div');
@@ -526,13 +534,13 @@ const App = (() => {
 
     } catch (e) {
       console.error('Weekly dashboard error:', e);
-      container.innerHTML += `
+      container.insertAdjacentHTML('beforeend', `
         <div class="card error-state" style="padding:24px; text-align:center; margin-top:16px;">
           <div style="font-size:36px; margin-bottom:8px;">⚠️</div>
           <h3>Impossibile caricare il calendario</h3>
           <p style="color:#8E99A4; margin-top:8px;">${e.message}</p>
           <button onclick="location.reload()" class="btn btn-primary btn-sm" style="margin-top:16px;">Ricarica Pagina</button>
-        </div>`;
+        </div>`);
     }
   }
 
@@ -578,7 +586,7 @@ const App = (() => {
 
     const subject = DB.getSubject(subjectId);
     if (!subject) {
-      container.innerHTML += '<div class="card"><p>Materia non trovata.</p></div>';
+      container.insertAdjacentHTML('beforeend', '<div class="card"><p>Materia non trovata.</p></div>');
       return;
     }
 

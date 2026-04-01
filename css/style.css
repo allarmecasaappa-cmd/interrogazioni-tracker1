@@ -487,10 +487,10 @@ body {
 }
 
 .risk-explanation {
-  font-size: 11px;
-  color: #8E99A4;
-  margin-bottom: 8px;
-  font-style: italic;
+  font-size: 13px;
+  color: #5A6775;
+  margin-bottom: 10px;
+  font-weight: 500;
 }
 
 .risk-card-stats {
