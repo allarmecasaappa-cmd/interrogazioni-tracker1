@@ -216,38 +216,10 @@ const App = (() => {
 
   // ---- Student Selector ----
   function renderStudentSelector(container, onChange) {
-    const session = DB.getSession();
-
-    // Students don't see the selector (they are fixed)
-    if (session.user.role === 'student') {
-      const student = DB.getStudent(session.user.id);
-      if (!student) {
-        DB.logout();
-        return false;
-      }
-
-      const header = document.createElement('div');
-      header.className = 'student-header student-view-only';
-      header.innerHTML = `
-        <div class="profile-circle" style="background: ${getColorForName(student.name)}">${RiskCalculator.getInitials(student.name)}</div>
-        <div class="student-header-info">
-          <div class="student-name-display">${student.name}</div>
-          <div class="student-class-display">${DB.getCurrentClassId()}</div>
-        </div>
-        <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci">🚪</button>
-      `;
-      container.appendChild(header);
-
-      header.querySelector('.btn-logout-icon-only')?.addEventListener('click', () => {
-        if (confirm('Vuoi uscire?')) DB.logout();
-      });
-
-      return true;
-    }
-
-    // Auto-select if not set
-    if (session.user.role === 'admin' || session.user.role === 'class_admin') {
+    try {
+      const session = DB.getSession();
       const students = DB.getStudents();
+
       if (students.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
@@ -259,20 +231,52 @@ const App = (() => {
                 <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
               </svg>
             </div>
-            <h3>No students configured</h3>
-            <p>Go to the Admin panel to add students or generate simulation data.</p>
-            <a href="#admin" class="btn btn-primary">Open Admin Panel</a>
+            <h3>Nessuno studente configurato</h3>
+            <p>Vai nel pannello Admin per aggiungere gli studenti o generare simulazioni.</p>
+            <a href="#admin" class="btn btn-primary">Apri Pannello Admin</a>
           </div>`;
         return false;
       }
+
       if (!currentStudentId || !students.find(s => s.id === currentStudentId)) {
         currentStudentId = students[0].id;
         localStorage.setItem('selectedStudentId', currentStudentId);
       }
 
       const student = students.find(s => s.id === currentStudentId);
-      const initials = RiskCalculator.getInitials(student.name);
 
+      // Student view (no selector)
+      if (session.user.role === 'student') {
+        const header = document.createElement('div');
+        header.className = 'student-header student-view-only';
+        header.innerHTML = `
+          <div class="profile-circle" style="background: ${getColorForName(student.name)}">${RiskCalculator.getInitials(student.name)}</div>
+          <div class="student-header-info">
+            <div class="student-name-display">${student.name}</div>
+            <div class="student-class-display">${DB.getCurrentClassId()}</div>
+          </div>
+          <div class="date-picker-row" style="margin-top: 10px;">
+            <input type="date" id="date-select" class="date-input" value="${selectedDate}">
+          </div>
+          <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci" style="margin-left: auto;">🚪</button>
+        `;
+        container.appendChild(header);
+
+        header.querySelector('#date-select').addEventListener('change', (e) => {
+          selectedDate = e.target.value || DB.formatDateISO();
+          if (onChange) onChange();
+          else handleRoute();
+        });
+
+        header.querySelector('.btn-logout-icon-only')?.addEventListener('click', () => {
+          if (confirm('Vuoi uscire?')) DB.logout();
+        });
+
+        return true;
+      }
+
+      // Admin or Class Admin view
+      const initials = RiskCalculator.getInitials(student.name);
       const header = document.createElement('div');
       header.className = 'student-header';
       header.innerHTML = `
@@ -288,7 +292,7 @@ const App = (() => {
             <input type="date" id="date-select" class="date-input" value="${selectedDate}">
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm btn-logout" title="Esci">Esci</button>
+        <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci">🚪</button>
       `;
       container.appendChild(header);
 
@@ -300,94 +304,96 @@ const App = (() => {
       });
 
       header.querySelector('#date-select').addEventListener('change', (e) => {
-        selectedDate = e.target.value;
+        selectedDate = e.target.value || DB.formatDateISO();
         if (onChange) onChange();
         else handleRoute();
       });
 
-      header.querySelector('.btn-logout')?.addEventListener('click', () => {
+      header.querySelector('.btn-logout-icon-only')?.addEventListener('click', () => {
         if (confirm('Vuoi uscire?')) DB.logout();
       });
-    }
 
-    return true;
+      return true;
+    } catch (e) {
+      console.error('Student selector error:', e);
+      return false;
+    }
   }
 
   // ---- Dashboard (Daily vs Weekly) ----
   function renderDashboard(container) {
-    container.innerHTML = '';
-    updateClassSelectorUI();
+    try {
+      container.innerHTML = '';
+      updateClassSelectorUI();
 
-    if (!renderStudentSelector(container, () => renderDashboard(container))) return;
+      if (!renderStudentSelector(container, () => renderDashboard(container))) return;
 
-    // Toggle bar (Daily vs Weekly)
-    const toggleContainer = document.createElement('div');
-    toggleContainer.className = 'toggle-bar';
-    toggleContainer.innerHTML = `
-      <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily">Oggi</button>
-      <button class="toggle-btn ${dashboardMode === 'weekly' ? 'active' : ''}" data-mode="weekly">Settimana</button>
-    `;
-    container.appendChild(toggleContainer);
+      // Toggle bar (Daily vs Weekly)
+      const toggleContainer = document.createElement('div');
+      toggleContainer.className = 'toggle-bar';
+      toggleContainer.innerHTML = `
+        <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily">Oggi</button>
+        <button class="toggle-btn ${dashboardMode === 'weekly' ? 'active' : ''}" data-mode="weekly">Settimana</button>
+      `;
+      container.appendChild(toggleContainer);
 
-    toggleContainer.querySelectorAll('.toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        dashboardMode = btn.dataset.mode;
-        localStorage.setItem('dashboardMode', dashboardMode);
-        renderDashboard(container);
+      toggleContainer.querySelectorAll('.toggle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          dashboardMode = btn.dataset.mode;
+          localStorage.setItem('dashboardMode', dashboardMode);
+          renderDashboard(container);
+        });
       });
-    });
 
-    if (dashboardMode === 'daily') {
-      renderRiskDashboard(container);
-    } else {
-      renderWeeklyDashboard(container);
+      if (dashboardMode === 'daily') {
+        renderRiskDashboard(container);
+      } else {
+        renderWeeklyDashboard(container);
+      }
+    } catch (e) {
+      console.error('Dashboard rendering error:', e);
+      container.innerHTML = `<div class="card error-state" style="text-align:center;padding:40px 20px;"><h3>Errore durante il caricamento</h3><p>${e.message}</p></div>`;
     }
   }
 
   function renderRiskDashboard(container) {
-    const results = RiskCalculator.calculateAllRisks(currentStudentId, selectedDate);
+    try {
+      const results = RiskCalculator.calculateAllRisks(currentStudentId, selectedDate);
 
-    if (results.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'empty-state small';
-      empty.innerHTML = `
-        <h3>No subjects found</h3>
-        <p>Go to the Admin panel to add subjects.</p>
-`;
-      container.appendChild(empty);
-      return;
+      // Extract scheduled items
+      const scheduledOnly = results.filter(item => item.status !== 'not-scheduled' && item.status !== 'vacation');
+
+      if (scheduledOnly.length === 0) {
+        // Is the whole day a vacation?
+        const isVacation = results.some(item => item.status === 'vacation');
+        
+        container.innerHTML += `
+          <div class="empty-state small">
+            <div class="empty-icon" style="font-size: 48px; margin-bottom: 12px;">${isVacation ? '🏖️' : '🕒'}</div>
+            <p style="color:#8E99A4; font-weight:600;">
+              ${isVacation ? 'Oggi è un giorno di vacanza.' : 'Nessuna materia in orario per questa data.'}
+            </p>
+            <p style="color:#B0B8C1; font-size: 13px; margin-top: 4px;">Pianifica il tuo studio per il prossimo giorno scolastico.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const grid = document.createElement('div');
+      grid.className = 'cards-grid';
+
+      for (const item of scheduledOnly) {
+        const card = createRiskCard(item);
+        card.addEventListener('click', () => {
+          location.hash = `subject/${item.subjectId}`;
+        });
+        grid.appendChild(card);
+      }
+      container.appendChild(grid);
+    } catch (e) {
+      console.error('Daily dashboard error:', e);
+      container.innerHTML += `<div class="card error-state"><h3>Errore calcolo rischio giornaliero</h3><p>${e.message}</p></div>`;
     }
-
-    const grid = document.createElement('div');
-    grid.className = 'cards-grid';
-
-    // Mostra solo le materie effettivamente in orario per quella giornata
-    const scheduledOnly = results.filter(item => item.status !== 'not-scheduled' && item.status !== 'vacation');
-
-    if (scheduledOnly.length === 0) {
-      // Is the whole day a vacation?
-      const isVacation = results.some(item => item.status === 'vacation');
-      
-      container.innerHTML += `
-        <div class="empty-state small">
-          <div class="empty-icon" style="font-size: 48px; margin-bottom: 12px;">${isVacation ? '🏖️' : '🕒'}</div>
-          <p style="color:#8E99A4; font-weight:600;">
-            ${isVacation ? 'Oggi è un giorno di vacanza.' : 'Nessuna materia in orario per questa data.'}
-          </p>
-          <p style="color:#B0B8C1; font-size: 13px; margin-top: 4px;">Pianifica il tuo studio per il prossimo giorno scolastico.</p>
-        </div>
-      `;
-      return;
-    }
-
-    for (const item of scheduledOnly) {
-      const card = createRiskCard(item);
-      card.addEventListener('click', () => {
-        location.hash = `subject/${item.subjectId}`;
-      });
-      grid.appendChild(card);
-    }
-    container.appendChild(grid);
   }
 
   function renderWeeklyDashboard(container) {
