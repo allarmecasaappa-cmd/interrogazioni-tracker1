@@ -5,7 +5,7 @@ const App = (() => {
   let currentStudentId = null;
   let currentView = 'dashboard';
   let dashboardMode = localStorage.getItem('dashboardMode') || 'daily'; // 'daily' | 'weekly'
-  let selectedDate = RiskCalculator.getNextSchoolDay(DB.formatDateISO());
+  let selectedDate = DB.formatDateISO();
 
   async function init() {
     // Show loading indicator while connecting to Supabase
@@ -41,65 +41,72 @@ const App = (() => {
   }
 
   function handleRoute() {
-    const session = DB.getSession();
-    const main = document.getElementById('main-content');
+    try {
+      const session = DB.getSession();
+      const main = document.getElementById('main-content');
+      if (!main) return;
 
-    // Auth Guard
-    if (!session.isLoggedIn) {
-      renderLogin(main);
-      return;
-    }
-
-    // Verify user still exists in DB
-    if (session.user.role === 'student' || session.user.role === 'class_admin') {
-      const studentExists = DB.getStudent(session.user.id);
-      if (!studentExists) {
-        DB.logout();
+      // Auth Guard
+      if (!session.isLoggedIn) {
+        renderLogin(main);
         return;
       }
-    }
 
-    const hash = location.hash.slice(1) || 'dashboard';
-    const parts = hash.split('/');
-    const route = parts[0];
-
-    // Student Restrictions
-    if (session.user.role === 'student') {
-      if (['admin'].includes(route)) {
-        location.hash = 'dashboard';
-        return;
+      // Verify user still exists in DB
+      if (session.user.role === 'student' || session.user.role === 'class_admin') {
+        const studentExists = DB.getStudent(session.user.id);
+        if (!studentExists) {
+          DB.logout();
+          return;
+        }
       }
-      // Students only see themselves
-      currentStudentId = session.user.id;
-    }
 
-    document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(el => el.classList.remove('active'));
-    document.querySelectorAll(`[data-route="${route}"]`).forEach(el => el.classList.add('active'));
+      const hash = location.hash.slice(1) || 'dashboard';
+      const parts = hash.split('/');
+      const route = parts[0];
 
-    // Hide/Show Admin nav item based on role (Admin or Class Admin)
-    const adminNav = document.querySelectorAll('[data-route="admin"]');
-    adminNav.forEach(el => el.style.display = (session.user.role === 'admin' || session.user.role === 'class_admin') ? 'flex' : 'none');
+      // Student Restrictions
+      if (session.user.role === 'student') {
+        if (['admin'].includes(route)) {
+          location.hash = 'dashboard';
+          return;
+        }
+        // Students only see themselves
+        currentStudentId = session.user.id;
+      }
 
-    main.innerHTML = '';
+      document.querySelectorAll('.nav-item, .bottom-nav-item').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll(`[data-route="${route}"]`).forEach(el => el.classList.add('active'));
 
-    switch (route) {
-      case 'dashboard':
-        renderDashboard(main);
-        break;
-      case 'subject':
-        renderSubjectDetail(main, parseInt(parts[1]));
-        break;
-      case 'registra':
-        renderRegistra(main);
-        break;
-      case 'history':
-        renderHistory(main);
-        break;
-      case 'admin':
-        renderAdmin(main);
-        break;
-      default:
-        renderDashboard(main);
+      // Hide/Show Admin nav item based on role (Admin or Class Admin)
+      const adminNav = document.querySelectorAll('[data-route="admin"]');
+      adminNav.forEach(el => el.style.display = (session.user.role === 'admin' || session.user.role === 'class_admin') ? 'flex' : 'none');
+
+      main.innerHTML = '';
+
+      switch (route) {
+        case 'dashboard':
+          renderDashboard(main);
+          break;
+        case 'subject':
+          renderSubjectDetail(main, parseInt(parts[1]));
+          break;
+        case 'registra':
+          renderRegistra(main);
+          break;
+        case 'history':
+          renderHistory(main);
+          break;
+        case 'admin':
+          renderAdmin(main);
+          break;
+        default:
+          renderDashboard(main);
+      }
+    } catch (e) {
+      console.error('Routing error:', e);
+      const main = document.getElementById('main-content');
+      if (main) main.innerHTML = `<div class="card error-state" style="text-align:center;padding:40px 20px;"><div style="font-size:48px;margin-bottom:16px;">⚠️</div><h3>Si è verificato un errore</h3><p style="color:#8E99A4;margin-bottom:20px;">${e.message}</p><button class="btn btn-primary" onclick="location.reload()">Ricarica Pagina</button></div>`;
     }
   }
 
@@ -358,9 +365,16 @@ const App = (() => {
     const scheduledOnly = results.filter(item => item.status !== 'not-scheduled' && item.status !== 'vacation');
 
     if (scheduledOnly.length === 0) {
+      // Is the whole day a vacation?
+      const isVacation = results.some(item => item.status === 'vacation');
+      
       container.innerHTML += `
         <div class="empty-state small">
-          <p style="color:#8E99A4;">Nessuna materia in orario per questa data.</p>
+          <div class="empty-icon" style="font-size: 48px; margin-bottom: 12px;">${isVacation ? '🏖️' : '🕒'}</div>
+          <p style="color:#8E99A4; font-weight:600;">
+            ${isVacation ? 'Oggi è un giorno di vacanza.' : 'Nessuna materia in orario per questa data.'}
+          </p>
+          <p style="color:#B0B8C1; font-size: 13px; margin-top: 4px;">Pianifica il tuo studio per il prossimo giorno scolastico.</p>
         </div>
       `;
       return;

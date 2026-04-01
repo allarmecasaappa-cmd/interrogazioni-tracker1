@@ -77,18 +77,6 @@ const RiskCalculator = (() => {
         const volunteers = data.volunteers;
         const config = data.config;
 
-        // Check vacation
-        if (vacations.some(v => v.date === date)) {
-            return { risk: 0, status: 'vacation', explanation: 'Giorno di vacanza' };
-        }
-
-        // Check if subject is scheduled for this day
-        const dayOfWeek = getDayOfWeek(date);
-        const scheduled = data.schedule.filter(s => s.subjectId === subjectId && s.dayOfWeek === dayOfWeek);
-        if (scheduled.length === 0) {
-            return { risk: 0, status: 'not-scheduled', explanation: 'Materia non in orario oggi' };
-        }
-
         // --- Find subject and student objects ---
         const subject = data.subjects.find(s => s.id === subjectId);
         const student = students.find(s => s.id === studentId);
@@ -111,6 +99,18 @@ const RiskCalculator = (() => {
             volunteerCount: volunteerIds.size,
             absentCount: absentIds.size
         };
+
+        // Check vacation
+        if (vacations.some(v => v.date === date)) {
+            return { risk: 0, status: 'vacation', explanation: 'Giorno di vacanza', ...baseStats };
+        }
+
+        // Check if subject is scheduled for this day
+        const dayOfWeek = getDayOfWeek(date);
+        const scheduled = data.schedule.filter(s => s.subjectId === subjectId && s.dayOfWeek === dayOfWeek);
+        if (scheduled.length === 0) {
+            return { risk: 0, status: 'not-scheduled', explanation: 'Materia non in orario oggi', ...baseStats };
+        }
 
         // --- noReligion check (before anything else) ---
         if (subject && subject.isReligion && student && student.noReligion) {
