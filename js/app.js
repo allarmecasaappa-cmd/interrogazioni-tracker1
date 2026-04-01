@@ -8,20 +8,21 @@ const App = (() => {
   let selectedDate = DB.formatDateISO();
 
   async function init() {
-    // Determine the default day: if it's afternoon or today has no subjects, 
-    // the students usually care about the NEXT school day.
-    selectedDate = RiskCalculator.getNextSchoolDay(DB.formatDateISO());
-    console.log("App init: Starting with next school day:", selectedDate);
-
+    // Starting state
+    const savedClassId = localStorage.getItem('currentClassId') || 'Classe-1';
+    
     // Show loading indicator
     const main = document.getElementById('main-content');
     if (main) main.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#8E99A4;"><p>Connessione al database...</p></div>';
 
-    // Initialize class from localStorage
-    const savedClassId = localStorage.getItem('currentClassId') || 'Classe-1';
-
     try {
       await DB.init(SUPABASE_URL, SUPABASE_ANON_KEY, savedClassId);
+      
+      // Determine the default day: if it's afternoon or today has no subjects, 
+      // the students usually care about the NEXT school day.
+      // But we do this AFTER DB.init so we know about vacations.
+      selectedDate = RiskCalculator.getNextSchoolDay(DB.formatDateISO(), true); 
+      console.log("App init: Starting with school day:", selectedDate);
     } catch (e) {
       if (main) main.innerHTML = `<div style="text-align:center;padding:60px 20px;color:#FF3B30;"><h3>Errore di connessione</h3><p>${e.message}</p><p>Verifica i valori in js/config.js</p></div>`;
       return;
@@ -200,6 +201,8 @@ const App = (() => {
         if (main) main.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#8E99A4;"><p>Caricamento classe...</p></div>';
 
         await DB.setClassId(newClass);
+        // Refresh default date for the new class
+        selectedDate = RiskCalculator.getNextSchoolDay(DB.formatDateISO(), true);
         handleRoute();
       });
     }
@@ -501,7 +504,7 @@ const App = (() => {
         } else {
           for (const item of items) {
             const mini = document.createElement('div');
-            mini.className = `week-card risk-${getRiskLevel(item.risk)}`;
+            mini.className = `week-card risk-${getRiskLevel(item.risk)} hours-${item.hours || 1}`;
             mini.innerHTML = `
               <div class="week-subject">${item.subjectName}</div>
               <div class="week-risk">${Math.round(item.risk)}%</div>
@@ -874,11 +877,10 @@ const App = (() => {
       e.preventDefault();
       const form = e.target;
       const sId = form.studentId ? parseInt(form.studentId.value) : currentStudentId;
-      const result = await DB.addInterrogation({
+      const result = await DB.addVolunteer({
         studentId: sId,
         subjectId: parseInt(form.subjectId.value),
-        date: selectedDate,
-        isVolunteer: true
+        date: selectedDate
       });
       const msg = volunteerCard.querySelector('#volunteer-msg');
       if (result.error) {

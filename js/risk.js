@@ -360,22 +360,33 @@ const RiskCalculator = (() => {
         });
     }
 
-    function getNextSchoolDay(dateStr) {
+    function getNextSchoolDay(dateStr, canReturnToday = false) {
         const data = DB.load();
-        const schoolDays = data.config.schoolDays || 5;
-        const vacations = data.vacations.map(v => v.date);
+        const config = data.config || {};
+        const schoolDays = config.schoolDays || 5;
+        const vacations = (data.vacations || []).map(v => v.date);
 
         const d = new Date(dateStr + 'T00:00:00');
-        for (let i = 0; i < 30; i++) {
-            d.setDate(d.getDate() + 1);
-            const currentStr = DB.formatDateISO(d);
-            const day = d.getDay() === 0 ? 7 : d.getDay();
-
-            if (day <= schoolDays && !vacations.includes(currentStr)) {
-                return currentStr;
+        
+        // If we can return today, and today is a school day and not a holiday, return it
+        if (canReturnToday) {
+            const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
+            const dateISO = DB.formatDateISO(d);
+            if (dayOfWeek <= schoolDays && !vacations.includes(dateISO)) {
+                return dateISO;
             }
         }
-        return DB.formatDateISO(d);
+
+        for (let i = 0; i < 30; i++) {
+            d.setDate(d.getDate() + 1);
+            const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
+            const dateISO = DB.formatDateISO(d);
+
+            if (dayOfWeek <= schoolDays && !vacations.includes(dateISO)) {
+                return dateISO;
+            }
+        }
+        return dateStr;
     }
 
     function getSurname(name) {
