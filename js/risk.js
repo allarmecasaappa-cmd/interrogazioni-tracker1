@@ -81,6 +81,11 @@ const RiskCalculator = (() => {
         const subject = data.subjects.find(s => s.id === subjectId);
         const student = students.find(s => s.id === studentId);
 
+        // Check vacation FIRST (before any config access that could throw)
+        if (vacations && vacations.some(v => v.date === date)) {
+            return { risk: 0, status: 'vacation', explanation: 'Giorno di vacanza', avgDaily: 1, volunteerCount: 0, absentCount: 0 };
+        }
+
         // --- Collect Data for Statistics ---
         const absentIds = new Set(
             absences
@@ -92,18 +97,14 @@ const RiskCalculator = (() => {
                 .filter(v => v.subjectId === subjectId && v.date === date)
                 .map(v => v.studentId)
         );
-        const M = config.avgInterrogationsPerSubjectPerDay[subjectId] || 1;
+        // Safe access: config.avgInterrogationsPerSubjectPerDay might be null/undefined
+        const M = (config.avgInterrogationsPerSubjectPerDay && config.avgInterrogationsPerSubjectPerDay[subjectId]) || 1;
 
         const baseStats = {
             avgDaily: M,
             volunteerCount: volunteerIds.size,
             absentCount: absentIds.size
         };
-
-        // Check vacation
-        if (vacations.some(v => v.date === date)) {
-            return { risk: 0, status: 'vacation', explanation: 'Giorno di vacanza', ...baseStats };
-        }
 
         // Check if subject is scheduled for this day
         const dayOfWeek = getDayOfWeek(date);
@@ -212,6 +213,12 @@ const RiskCalculator = (() => {
      */
     function calculateDashboard(studentId, date) {
         const data = DB.load();
+
+        // Check vacation first — return a sentinel so the UI can detect it
+        if (data.vacations && data.vacations.some(v => v.date === date)) {
+            return [{ subjectId: null, subjectName: '—', teacherName: '—', hours: 0, risk: 0, status: 'vacation', explanation: 'Giorno di vacanza', avgDaily: 1, volunteerCount: 0, absentCount: 0 }];
+        }
+
         const dayOfWeek = getDayOfWeek(date);
 
         // Aggregate schedule entries for this day to compute total hours per subject
