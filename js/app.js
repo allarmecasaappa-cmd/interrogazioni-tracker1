@@ -8,11 +8,12 @@ const App = (() => {
   let selectedDate = DB.formatDateISO();
 
   async function init() {
-    // Default to the next school day as requested (e.g. for afternoon checks)
+    // Determine the default day: if it's afternoon or today has no subjects, 
+    // the students usually care about the NEXT school day.
     selectedDate = RiskCalculator.getNextSchoolDay(DB.formatDateISO());
-    console.log("App initialized. Default viewing day set to:", selectedDate);
+    console.log("App init: Starting with next school day:", selectedDate);
 
-    // Show loading indicator while connecting to Supabase
+    // Show loading indicator
     const main = document.getElementById('main-content');
     if (main) main.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#8E99A4;"><p>Connessione al database...</p></div>';
 
@@ -268,11 +269,12 @@ const App = (() => {
         `;
         container.appendChild(header);
 
-        header.querySelector('#date-select').addEventListener('change', (e) => {
-          selectedDate = e.target.value || DB.formatDateISO();
-          if (onChange) onChange();
-          else handleRoute();
-        });
+      header.querySelector('#date-select').addEventListener('input', (e) => {
+        selectedDate = e.target.value || DB.formatDateISO();
+        console.log("Selected date changed to:", selectedDate);
+        if (onChange) onChange();
+        else handleRoute();
+      });
 
         header.querySelector('.btn-logout-icon-only')?.addEventListener('click', () => {
           if (confirm('Vuoi uscire?')) DB.logout();
@@ -311,8 +313,9 @@ const App = (() => {
         else handleRoute();
       });
 
-      header.querySelector('#date-select').addEventListener('change', (e) => {
+      header.querySelector('#date-select').addEventListener('input', (e) => {
         selectedDate = e.target.value || DB.formatDateISO();
+        console.log("Admin date changed to:", selectedDate);
         if (onChange) onChange();
         else handleRoute();
       });
@@ -340,7 +343,7 @@ const App = (() => {
       const toggleContainer = document.createElement('div');
       toggleContainer.className = 'toggle-bar';
       toggleContainer.innerHTML = `
-        <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily">Oggi</button>
+        <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily">Giorno</button>
         <button class="toggle-btn ${dashboardMode === 'weekly' ? 'active' : ''}" data-mode="weekly">Settimana</button>
       `;
       container.appendChild(toggleContainer);

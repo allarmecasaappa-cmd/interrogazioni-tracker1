@@ -1813,6 +1813,398 @@ body {
 }
 
 .registra-side {
+  .admin-avg-control {
+    background: #F9FAFB;
+    padding: 8px 12px;
+    border-radius: 10px;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .admin-item-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+    border-top: 1px solid #F9FAFB;
+    padding-top: 10px;
+  }
+
+  .admin-item-actions label {
+    margin-right: auto !important; /* Push religion checkbox to the left, buttons to the right */
+    font-size: 11px;
+  }
+
+  .history-teacher {
+    font-size: 13px;
+    font-weight: 400;
+  }
+
+  .history-teacher::before {
+    content: "•";
+    color: #DDE1E6;
+    margin-right: 8px;
+  }
+
+  /* Optimize Subject Detail layout */
+  .risk-detail-card {
+    padding: 16px;
+  }
+
+  .risk-detail-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0 10px;
+    margin-bottom: 8px;
+  }
+
+  .risk-detail-header h2 {
+    font-size: 20px;
+    margin-bottom: 0;
+  }
+
+  .risk-detail-teacher {
+    font-size: 14px;
+    margin-bottom: 0;
+    color: #8E99A4;
+  }
+
+  .risk-detail-teacher::before {
+    content: "•";
+    color: #DDE1E6;
+    margin-right: 10px;
+  }
+
+  .risk-detail-value {
+    margin: 8px 0;
+  }
+
+  .risk-big-number {
+    font-size: 48px;
+  }
+
+  .risk-big-percent {
+    font-size: 20px;
+  }
+
+  .risk-bar-container.large {
+    height: 8px;
+    margin: 12px 0;
+  }
+
+  .risk-detail-explanation {
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  .risk-detail-status {
+    font-size: 10px;
+    margin-top: 8px;
+  }
+
+  .expandable-section {
+    padding: 16px;
+  }
+
+  .expandable-header h3 {
+    font-size: 15px;
+  }
+
+  .schedule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-inline-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .risk-big-number {
+    font-size: 56px;
+  }
+
+  .sim-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D5D9DE;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B0B8C1;
+}
+
+/* ---- Animations ---- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.risk-card,
+.card,
+.week-card {
+  animation: fadeIn 0.3s ease;
+}
+
+/* ---- Registra Layout ---- */
+.registra-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 992px) {
+  .registra-layout {
+    grid-template-columns: 1fr 340px;
+  }
+}
+
+.form-card {
+  transition: all 0.3s ease;
+}
+
+.form-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.primary-action {
+  border-top: 4px solid #4A90D9;
+}
+
+.primary-action h2 {
+  color: #4A90D9;
+}
+
+.secondary-action {
+  border-top: 4px solid #5A6775;
+}
+
+.secondary-action h3 {
+  color: #5A6775;
+}
+
+.registra-side {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.btn-block {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .admin-item-actions {
+    width: 100%;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+    border-top: 1px solid #F9FAFB;
+    padding-top: 10px;
+  }
+
+  .admin-item-actions label {
+    margin-right: auto !important; /* Push religion checkbox to the left, buttons to the right */
+    font-size: 11px;
+  }
+
+  .history-teacher {
+    font-size: 13px;
+    font-weight: 400;
+  }
+
+  .history-teacher::before {
+    content: "•";
+    color: #DDE1E6;
+    margin-right: 8px;
+  }
+
+  /* Optimize Subject Detail layout */
+  .risk-detail-card {
+    padding: 16px;
+  }
+
+  .risk-detail-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0 10px;
+    margin-bottom: 8px;
+  }
+
+  .risk-detail-header h2 {
+    font-size: 20px;
+    margin-bottom: 0;
+  }
+
+  .risk-detail-teacher {
+    font-size: 14px;
+    margin-bottom: 0;
+    color: #8E99A4;
+  }
+
+  .risk-detail-teacher::before {
+    content: "•";
+    color: #DDE1E6;
+    margin-right: 10px;
+  }
+
+  .risk-detail-value {
+    margin: 8px 0;
+  }
+
+  .risk-big-number {
+    font-size: 48px;
+  }
+
+  .risk-big-percent {
+    font-size: 20px;
+  }
+
+  .risk-bar-container.large {
+    height: 8px;
+    margin: 12px 0;
+  }
+
+  .risk-detail-explanation {
+    font-size: 13px;
+    margin-top: 4px;
+  }
+
+  .risk-detail-status {
+    font-size: 10px;
+    margin-top: 8px;
+  }
+
+  .expandable-section {
+    padding: 16px;
+  }
+
+  .expandable-header h3 {
+    font-size: 15px;
+  }
+
+  .schedule-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-inline-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .risk-big-number {
+    font-size: 56px;
+  }
+
+  .sim-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ---- Scrollbar ---- */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D5D9DE;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #B0B8C1;
+}
+
+/* ---- Animations ---- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.risk-card,
+.card,
+.week-card {
+  animation: fadeIn 0.3s ease;
+}
+
+/* ---- Registra Layout ---- */
+.registra-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+@media (min-width: 992px) {
+  .registra-layout {
+    grid-template-columns: 1fr 340px;
+  }
+}
+
+.form-card {
+  transition: all 0.3s ease;
+}
+
+.form-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.primary-action {
+  border-top: 4px solid #4A90D9;
+}
+
+.primary-action h2 {
+  color: #4A90D9;
+}
+
+.secondary-action {
+  border-top: 4px solid #5A6775;
+}
+
+.secondary-action h3 {
+  color: #5A6775;
+}
+
+.registra-side {
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -1824,5 +2216,122 @@ body {
 
 .small {
   font-size: 11px !important;
-}. t o d a y - b a d g e   {   b a c k g r o u n d :   r g b a ( 3 3 ,   1 5 0 ,   2 4 3 ,   0 . 1 5 ) ;   c o l o r :   # 2 1 9 6 F 3 ;   f o n t - s i z e :   1 0 p x ;   f o n t - w e i g h t :   8 0 0 ;   p a d d i n g :   2 p x   6 p x ;   b o r d e r - r a d i u s :   4 p x ;   m a r g i n - l e f t :   8 p x ;   l e t t e r - s p a c i n g :   0 . 5 p x ;   b o r d e r :   1 p x   s o l i d   r g b a ( 3 3 ,   1 5 0 ,   2 4 3 ,   0 . 3 ) ;   v e r t i c a l - a l i g n :   m i d d l e ;   }  
- 
+}
+
+.today-badge { 
+  display: inline-block;
+  background: rgba(33, 150, 243, 0.15); 
+  color: #2196F3; 
+  font-size: 10px; 
+  font-weight: 800; 
+  padding: 2px 6px; 
+  border-radius: 4px; 
+  margin-left: 8px; 
+  letter-spacing: 0.5px; 
+  border: 1px solid rgba(33, 150, 243, 0.3); 
+  vertical-align: middle; 
+  line-height: 1;
+}
+
+/* ---- Weekly Grid (Calendar) ---- */
+.calendar-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  background: white;
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.week-grid {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.week-day-column {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #E8EAED;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+}
+
+.week-day-column.today {
+  border: 2px solid #2196F3;
+  box-shadow: 0 4px 12px rgba(33, 150, 243, 0.15);
+}
+
+.week-day-header {
+  padding: 10px;
+  background: #F8F9FA;
+  border-bottom: 1px solid #E8EAED;
+  text-align: center;
+  font-weight: 700;
+  font-size: 12px;
+  color: #5F6368;
+}
+
+.week-day-header.today {
+  background: #E3F2FD;
+  color: #1976D2;
+}
+
+.week-date {
+  display: block;
+  font-size: 10px;
+  color: #8E99A4;
+  font-weight: 400;
+}
+
+.week-count {
+  font-size: 9px;
+  margin-top: 2px;
+  color: #2196F3;
+}
+
+.week-card {
+  margin: 6px;
+  padding: 10px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s, box-shadow 0.2s;
+  min-height: 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid rgba(0,0,0,0.03);
+}
+
+.week-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+}
+
+.week-subject {
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 2px;
+  line-height: 1.2;
+}
+
+.week-risk {
+  font-size: 10px;
+  font-weight: 600;
+  opacity: 0.9;
+}
+
+.week-card.risk-low { background: #E8F5E9; color: #2E7D32; }
+.week-card.risk-medium { background: #FFF3E0; color: #EF6C00; }
+.week-card.risk-high { background: #FFEBEE; color: #C62828; }
+.week-card.risk-critical { background: #B71C1C; color: #ffffff; }
+
+@media (max-width: 600px) {
+  .week-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
