@@ -334,6 +334,7 @@ const App = (() => {
   // ---- Dashboard (Daily vs Weekly) ----
   function renderDashboard(container) {
     try {
+      console.log("Rendering Dashboard. Mode:", dashboardMode, "Date:", selectedDate);
       container.innerHTML = '';
       updateClassSelectorUI();
 
@@ -343,14 +344,17 @@ const App = (() => {
       const toggleContainer = document.createElement('div');
       toggleContainer.className = 'toggle-bar';
       toggleContainer.innerHTML = `
-        <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily">Giorno</button>
+        <button class="toggle-btn ${dashboardMode === 'daily' ? 'active' : ''}" data-mode="daily">Oggi</button>
         <button class="toggle-btn ${dashboardMode === 'weekly' ? 'active' : ''}" data-mode="weekly">Settimana</button>
       `;
       container.appendChild(toggleContainer);
 
       toggleContainer.querySelectorAll('.toggle-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          dashboardMode = btn.dataset.mode;
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const newMode = btn.dataset.mode;
+          console.log("Toggle clicked. Old:", dashboardMode, "New:", newMode);
+          dashboardMode = newMode;
           localStorage.setItem('dashboardMode', dashboardMode);
           renderDashboard(container);
         });
