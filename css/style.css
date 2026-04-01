@@ -487,10 +487,10 @@ body {
 }
 
 .risk-explanation {
-  font-size: 13px;
+  font-size: 14.5px;
   color: #5A6775;
   margin-bottom: 10px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .risk-card-stats {
@@ -694,9 +694,10 @@ body {
 }
 
 .risk-detail-explanation {
-  font-size: 14px;
+  font-size: 15px;
   color: #5A6775;
   margin-top: 8px;
+  font-weight: 600;
 }
 
 .risk-detail-status {
@@ -1701,8 +1702,9 @@ body {
   }
 
   .risk-detail-explanation {
-    font-size: 13px;
+    font-size: 14px;
     margin-top: 4px;
+    font-weight: 600;
   }
 
   .risk-detail-status {
@@ -1896,8 +1898,9 @@ body {
   }
 
   .risk-detail-explanation {
-    font-size: 13px;
+    font-size: 14px;
     margin-top: 4px;
+    font-weight: 600;
   }
 
   .risk-detail-status {
@@ -2093,8 +2096,9 @@ body {
   }
 
   .risk-detail-explanation {
-    font-size: 13px;
+    font-size: 14px;
     margin-top: 4px;
+    font-weight: 600;
   }
 
   .risk-detail-status {
