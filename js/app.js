@@ -8,9 +8,9 @@ const App = (() => {
   let selectedDate = DB.formatDateISO();
 
   async function init() {
-    // Force selectedDate to today on startup
-    selectedDate = DB.formatDateISO();
-    console.log("App initialized. Default date set to:", selectedDate);
+    // Default to the next school day as requested (e.g. for afternoon checks)
+    selectedDate = RiskCalculator.getNextSchoolDay(DB.formatDateISO());
+    console.log("App initialized. Default viewing day set to:", selectedDate);
 
     // Show loading indicator while connecting to Supabase
     const main = document.getElementById('main-content');
@@ -259,8 +259,10 @@ const App = (() => {
             <div class="student-name-display">${student.name}</div>
             <div class="student-class-display">${DB.getCurrentClassId()}</div>
           </div>
-          <div class="date-picker-row" style="margin-top: 10px;">
+          <div class="date-picker-row" style="margin-top: 10px; display: flex; align-items: center;">
             <input type="date" id="date-select" class="date-input" value="${selectedDate}">
+            ${selectedDate === DB.formatDateISO() ? '<span class="today-badge">OGGI</span>' : ''}
+            ${selectedDate === RiskCalculator.getNextSchoolDay(DB.formatDateISO()) ? '<span class="today-badge" style="background: rgba(156, 39, 176, 0.15); color: #9C27B0; border-color: rgba(156, 39, 176, 0.3);">PROSSIMO</span>' : ''}
           </div>
           <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci" style="margin-left: auto;">🚪</button>
         `;
@@ -295,6 +297,7 @@ const App = (() => {
           <div class="date-picker-box">
             <input type="date" id="date-select" class="date-input" value="${selectedDate}">
             ${selectedDate === DB.formatDateISO() ? '<span class="today-badge">OGGI</span>' : ''}
+            ${selectedDate === RiskCalculator.getNextSchoolDay(DB.formatDateISO()) ? '<span class="today-badge" style="background: rgba(156, 39, 176, 0.15); color: #9C27B0; border-color: rgba(156, 39, 176, 0.3);">PROSSIMO</span>' : ''}
           </div>
         </div>
         <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci">🚪</button>
