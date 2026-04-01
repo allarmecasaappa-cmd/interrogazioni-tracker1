@@ -413,37 +413,37 @@ const App = (() => {
 
   function renderWeeklyDashboard(container) {
     try {
+      console.log("renderWeeklyDashboard called. selectedDate:", selectedDate, "studentId:", currentStudentId);
+
       const dates = RiskCalculator.getWeekDates(selectedDate);
-      if (dates.length === 0) {
-        container.innerHTML += `<div class="empty-state small" style="padding:40px 20px; text-align:center;"><div style="font-size:48px;margin-bottom:12px;">📅</div><p style="color:#8E99A4;">Nessun giorno scolastico configurato per questa classe.</p><a href="#admin" class="btn btn-secondary btn-sm" style="margin-top:12px;">Configura in Admin</a></div>`;
+      console.log("Week dates:", dates);
+
+      if (!dates || dates.length === 0) {
+        container.innerHTML += `
+          <div class="empty-state small" style="padding:40px 20px; text-align:center;">
+            <div style="font-size:48px;margin-bottom:12px;">📅</div>
+            <p style="color:#8E99A4;">Nessun giorno scolastico configurato per questa classe.</p>
+            <a href="#admin" class="btn btn-secondary btn-sm" style="margin-top:12px;">Configura in Admin</a>
+          </div>`;
         return;
       }
-      
-      const weekData = RiskCalculator.calculateWeekly(currentStudentId, selectedDate);
-      const dayNames = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom']; 
-      
+
+      const dayNamesMap = { 1: 'Lun', 2: 'Mar', 3: 'Mer', 4: 'Gio', 5: 'Ven', 6: 'Sab', 7: 'Dom' };
+
       const formatDateShort = (d) => {
-        if (!d) return '??/??';
+        if (!d) return '—';
         const parts = d.split('-');
         return parts.length === 3 ? `${parts[2]}/${parts[1]}` : d;
       };
 
       // Week navigation header
-      const weekNav = document.createElement('div');
-      weekNav.className = 'week-navigation-header';
-      weekNav.style.display = 'flex';
-      weekNav.style.justifyContent = 'space-between';
-      weekNav.style.alignItems = 'center';
-      weekNav.style.marginBottom = '16px';
-      weekNav.style.padding = '8px 12px';
-      weekNav.style.background = '#FFFFFF';
-      weekNav.style.borderRadius = '12px';
-      weekNav.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)';
-
       const currentD = new Date(selectedDate + 'T00:00:00');
       const prevDate = new Date(currentD); prevDate.setDate(currentD.getDate() - 7);
       const nextDate = new Date(currentD); nextDate.setDate(currentD.getDate() + 7);
 
+      const weekNav = document.createElement('div');
+      weekNav.className = 'week-navigation-header';
+      weekNav.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; padding:10px 14px; background:#fff; border-radius:16px; box-shadow:0 1px 4px rgba(0,0,0,0.06);';
       weekNav.innerHTML = `
         <button class="btn btn-secondary btn-sm" id="prev-week-btn">← Prec.</button>
         <div style="font-weight:700; font-size:14px; color:#1A1A2E;">
@@ -453,69 +453,83 @@ const App = (() => {
       `;
       container.appendChild(weekNav);
 
-      weekNav.querySelector('#prev-week-btn').addEventListener('click', () => {
+      weekNav.querySelector('#prev-week-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
         selectedDate = DB.formatDateISO(prevDate);
         renderDashboard(container);
       });
-      weekNav.querySelector('#next-week-btn').addEventListener('click', () => {
+      weekNav.querySelector('#next-week-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
         selectedDate = DB.formatDateISO(nextDate);
         renderDashboard(container);
       });
 
       const weekGrid = document.createElement('div');
       weekGrid.className = 'week-grid';
-      weekGrid.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
-      
-      // Responsive fix for small screens
-      if (window.innerWidth < 600) {
-        weekGrid.style.gridTemplateColumns = '1fr';
-      }
+      weekGrid.style.gridTemplateColumns = window.innerWidth < 600 ? '1fr' : `repeat(${dates.length}, 1fr)`;
 
-      dates.forEach((date, idx) => {
-        const dayCol = document.createElement('div');
+      for (const date of dates) {
+        const d = new Date(date + 'T00:00:00');
+        const dayNum = d.getDay() === 0 ? 7 : d.getDay();
+        const dayName = dayNamesMap[dayNum] || '?';
         const isToday = date === DB.formatDateISO();
-        dayCol.className = `week-day-column ${isToday ? 'today' : ''}`;
 
+        const dayCol = document.createElement('div');
+        dayCol.className = `week-day-column${isToday ? ' today' : ''}`;
         dayCol.innerHTML = `
-          <div class="week-day-header ${isToday ? 'today' : ''}">
-            ${dayNames[idx] || 'Giorno'}
+          <div class="week-day-header${isToday ? ' today' : ''}">
+            ${dayName}
             <span class="week-date">${formatDateShort(date)}</span>
           </div>
         `;
 
-        const items = weekData[date] || [];
-        
-        // Check if the whole day is a holiday
-        const isHoliday = DB.load().vacations.some(v => v.date === date);
+        // Get items for this day using calculateDashboard (same as daily, but for each day)
+        let items = [];
+        let isVacation = false;
+        try {
+          const dayResults = RiskCalculator.calculateDashboard(currentStudentId, date);
+          isVacation = dayResults.some(r => r.status === 'vacation');
+          items = dayResults.filter(r => r.status !== 'not-scheduled' && r.status !== 'vacation');
+        } catch (dayErr) {
+          console.warn("Error computing day data for", date, dayErr);
+        }
 
-        if (isHoliday) {
-          dayCol.innerHTML += `<div class="week-empty holiday" style="color:#6A1B9A; background:#F3E5F5; border-radius:12px; font-weight:600; font-size:10px; padding:10px 5px; text-align:center;">🏖️ VACANZA</div>`;
+        if (isVacation) {
+          dayCol.innerHTML += `<div class="week-empty holiday" style="color:#6A1B9A; background:#F3E5F5; border-radius:12px; font-weight:600; font-size:10px; padding:10px 5px; text-align:center; margin:6px;">🏖️ VACANZA</div>`;
         } else if (items.length === 0) {
-          dayCol.innerHTML += `<div class="week-empty" style="font-size:10px; color:#B0B8C1; text-align:center; padding:12px 0;">Lezioni assenti</div>`;
+          dayCol.innerHTML += `<div class="week-empty" style="font-size:10px; color:#B0B8C1; text-align:center; padding:16px 0;">Nessuna lezione</div>`;
         } else {
           for (const item of items) {
             const mini = document.createElement('div');
-            const hoursClass = item.hours > 1 ? ` hours-${item.hours}` : '';
-            mini.className = `week-card risk-${getRiskLevel(item.risk)}${hoursClass}`;
-            
+            mini.className = `week-card risk-${getRiskLevel(item.risk)}`;
             mini.innerHTML = `
               <div class="week-subject">${item.subjectName}</div>
               <div class="week-risk">${Math.round(item.risk)}%</div>
             `;
-            
-            mini.addEventListener('click', () => {
+            mini.addEventListener('click', (e) => {
+              e.stopPropagation();
               selectedDate = date;
               location.hash = `subject/${item.subjectId}`;
             });
             dayCol.appendChild(mini);
           }
         }
+
         weekGrid.appendChild(dayCol);
-      });
+      }
+
       container.appendChild(weekGrid);
+      console.log("Weekly dashboard rendered successfully.");
+
     } catch (e) {
       console.error('Weekly dashboard error:', e);
-      container.innerHTML += `<div class="card error-state" style="padding:20px; text-align:center;"><h3>Impossibile caricare il calendario</h3><p style="color:#8E99A4;">${e.message}</p></div>`;
+      container.innerHTML += `
+        <div class="card error-state" style="padding:24px; text-align:center; margin-top:16px;">
+          <div style="font-size:36px; margin-bottom:8px;">⚠️</div>
+          <h3>Impossibile caricare il calendario</h3>
+          <p style="color:#8E99A4; margin-top:8px;">${e.message}</p>
+          <button onclick="location.reload()" class="btn btn-primary btn-sm" style="margin-top:16px;">Ricarica Pagina</button>
+        </div>`;
     }
   }
 
