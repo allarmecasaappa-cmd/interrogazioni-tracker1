@@ -8,6 +8,10 @@ const App = (() => {
   let selectedDate = DB.formatDateISO();
 
   async function init() {
+    // Force selectedDate to today on startup
+    selectedDate = DB.formatDateISO();
+    console.log("App initialized. Default date set to:", selectedDate);
+
     // Show loading indicator while connecting to Supabase
     const main = document.getElementById('main-content');
     if (main) main.innerHTML = '<div style="text-align:center;padding:60px 20px;color:#8E99A4;"><p>Connessione al database...</p></div>';
@@ -288,8 +292,9 @@ const App = (() => {
             </select>
             <div class="student-class-display admin-header-class">${DB.getCurrentClassId()}</div>
           </div>
-          <div class="date-picker-row">
+          <div class="date-picker-box">
             <input type="date" id="date-select" class="date-input" value="${selectedDate}">
+            ${selectedDate === DB.formatDateISO() ? '<span class="today-badge">OGGI</span>' : ''}
           </div>
         </div>
         <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci">🚪</button>
