@@ -477,7 +477,7 @@ const App = (() => {
 
       const weekGrid = document.createElement('div');
       weekGrid.className = 'week-grid';
-      weekGrid.style.gridTemplateColumns = window.innerWidth < 600 ? '1fr' : `repeat(${dates.length}, 1fr)`;
+      weekGrid.style.gridTemplateColumns = `repeat(${dates.length}, 1fr)`;
 
       for (const date of dates) {
         const d = new Date(date + 'T00:00:00');
