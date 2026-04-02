@@ -2334,12 +2334,6 @@ body {
 .week-card.risk-high { background: #FFEBEE; color: #C62828; }
 .week-card.risk-critical { background: #B71C1C; color: #ffffff; }
 
-@media (max-width: 600px) {
-  .week-grid {
-    grid-template-columns: 1fr !important;
-  }
-}
-
 /* ---- Dashboard Toggle Bar ---- */
 .toggle-bar {
   display: flex;
