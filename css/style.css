@@ -2368,3 +2368,73 @@ body {
 .toggle-btn:not(.active):hover {
   background: rgba(0,0,0,0.03);
 }
+
+/* ---- Mobile Optimization for Weekly Calendar ---- */
+@media (max-width: 600px) {
+  .main-content {
+    padding: 64px 8px 84px !important; /* Ridotto padding laterale per dare più spazio al calendario */
+  }
+
+  .week-grid {
+    gap: 4px !important; /* Ridotto spazio tra le colonne dei giorni */
+  }
+
+  /* Compattazione header navigazione settimana */
+  .week-navigation-header {
+    padding: 6px 10px !important;
+    margin-bottom: 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .week-navigation-header div {
+    font-size: 12px !important;
+  }
+
+  .week-navigation-header .btn-sm {
+    padding: 6px 10px !important;
+    font-size: 11px !important;
+  }
+
+  .week-day-column {
+    border-radius: 10px !important;
+    min-height: 80px !important;
+  }
+
+  .week-day-header {
+    padding: 6px 2px !important;
+    font-size: 11px !important;
+  }
+
+  .week-date {
+    font-size: 9px !important;
+  }
+
+  .week-card {
+    margin: 3px !important; /* Ridotto margine esterno delle card */
+    padding: 6px 4px !important; /* Ridotto padding interno delle card */
+    border-radius: 8px !important;
+    min-height: 40px !important;
+  }
+
+  .week-subject {
+    font-size: 10px !important; /* Font leggermente più piccolo per evitare tagli */
+    margin-bottom: 0 !important;
+  }
+
+  .week-risk {
+    font-size: 9px !important;
+  }
+
+  /* Compattazione indicatori vacanza/vuoto */
+  .week-empty.holiday {
+    margin: 4px !important;
+    padding: 8px 4px !important;
+    font-size: 9px !important;
+  }
+
+  .week-empty {
+    padding: 12px 0 !important;
+    font-size: 9px !important;
+  }
+}
+
