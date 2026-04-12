@@ -1957,7 +1957,7 @@ const App = (() => {
   function getRiskLevel(risk) {
     if (risk <= 1) return 'null';
     if (risk <= 10) return 'low';
-    if (risk <= 18) return 'medium';
+    if (risk <= 25) return 'medium';
     if (risk <= 33) return 'high';
     return 'critical';
   }
@@ -1965,7 +1965,7 @@ const App = (() => {
   function getRiskColor(risk) {
     if (risk <= 1) return '#34C759';   // Verde — Nullo
     if (risk <= 10) return '#4A90D9';  // Azzurro — Basso
-    if (risk <= 18) return '#FF9500';  // Arancione — Medio
+    if (risk <= 25) return '#FF9500';  // Arancione — Medio
     if (risk <= 33) return '#FF3B30';  // Rosso chiaro — Alto
     return '#C0392B';                  // Rosso scuro — Altissimo
   }
