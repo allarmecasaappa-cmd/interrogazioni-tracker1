@@ -823,16 +823,21 @@ const App = (() => {
     absenceCard.className = 'card form-card secondary-action';
     absenceCard.innerHTML = `
       <h3>Segnala Assenza</h3>
-      <p class="form-hint">Lo studente non sarà contato nel rischio per oggi.</p>
+      <p class="form-hint">Lo studente non sarà contato nel rischio per la data selezionata.</p>
       <form id="absence-form">
         ${(session.user.role === 'admin' || session.user.role === 'class_admin') ? `
           <div class="form-group">
+            <label>Studente</label>
             <select name="studentId" required style="margin-bottom: 8px;">
               ${DB.getStudents().map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
             </select>
           </div>
         ` : ''}
-        <button type="submit" class="btn btn-secondary btn-block">Registra Assenza per Oggi</button>
+        <div class="form-group">
+          <label>Data</label>
+          <input type="date" name="date" value="${selectedDate}" required>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-block">Registra Assenza</button>
         <div id="absence-msg" class="form-message"></div>
       </form>
     `;
@@ -844,7 +849,7 @@ const App = (() => {
       const sId = form.studentId ? parseInt(form.studentId.value) : currentStudentId;
       const result = await DB.addAbsence({
         studentId: sId,
-        date: selectedDate
+        date: form.date.value
       });
       const msg = absenceCard.querySelector('#absence-msg');
       if (result.error) {
@@ -856,6 +861,24 @@ const App = (() => {
       }
     });
 
+    function getNextScheduledDateForSubject(subjectId, startDateStr) {
+      const schedule = DB.getSchedule().filter(s => s.subjectId === subjectId);
+      if (schedule.length === 0) return startDateStr;
+      const scheduledDays = new Set(schedule.map(s => s.dayOfWeek));
+      const vacations = new Set(DB.getVacations().map(v => v.date));
+
+      const d = new Date(startDateStr + 'T00:00:00');
+      for (let i = 0; i < 30; i++) {
+        const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
+        const dateISO = DB.formatDateISO(d);
+        if (scheduledDays.has(dayOfWeek) && !vacations.has(dateISO)) {
+          return dateISO;
+        }
+        d.setDate(d.getDate() + 1);
+      }
+      return startDateStr;
+    }
+
     const volunteerCard = document.createElement('div');
     volunteerCard.className = 'card form-card secondary-action';
     volunteerCard.innerHTML = `
@@ -864,16 +887,22 @@ const App = (() => {
       <form id="volunteer-form">
         ${(session.user.role === 'admin' || session.user.role === 'class_admin') ? `
           <div class="form-group">
+            <label>Studente</label>
             <select name="studentId" required style="margin-bottom: 8px;">
               ${DB.getStudents().map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
             </select>
           </div>
         ` : ''}
         <div class="form-group">
+          <label>Materia</label>
           <select name="subjectId" required>
             <option value="">Seleziona materia...</option>
             ${subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('')}
           </select>
+        </div>
+        <div class="form-group">
+          <label>Data</label>
+          <input type="date" name="date" value="${selectedDate}" required>
         </div>
         <button type="submit" class="btn btn-secondary btn-block">Registra Volontario</button>
         <div id="volunteer-msg" class="form-message"></div>
@@ -881,16 +910,41 @@ const App = (() => {
     `;
     sideCol.appendChild(volunteerCard);
 
-    volunteerCard.querySelector('#volunteer-form').addEventListener('submit', async (e) => {
+    const volForm = volunteerCard.querySelector('#volunteer-form');
+    const volSubjSelect = volForm.querySelector('select[name="subjectId"]');
+    const volDateInput = volForm.querySelector('input[name="date"]');
+
+    volSubjSelect.addEventListener('change', () => {
+      const subjectId = parseInt(volSubjSelect.value);
+      if (!subjectId) return;
+      const proposedDate = getNextScheduledDateForSubject(subjectId, selectedDate);
+      volDateInput.value = proposedDate;
+    });
+
+    volForm.addEventListener('submit', async (e) => {
       e.preventDefault();
       const form = e.target;
       const sId = form.studentId ? parseInt(form.studentId.value) : currentStudentId;
+      const subjId = parseInt(form.subjectId.value);
+      const chosenDate = form.date.value;
+
+      // Client-side verification that the date is a scheduled day for the subject
+      const d = new Date(chosenDate + 'T00:00:00');
+      const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
+      const isScheduled = DB.getSchedule().some(s => s.subjectId === subjId && s.dayOfWeek === dayOfWeek);
+      const msg = volunteerCard.querySelector('#volunteer-msg');
+
+      if (!isScheduled) {
+        msg.className = 'form-message error';
+        msg.textContent = 'La materia selezionata non è in orario per questo giorno della settimana.';
+        return;
+      }
+
       const result = await DB.addVolunteer({
         studentId: sId,
-        subjectId: parseInt(form.subjectId.value),
-        date: selectedDate
+        subjectId: subjId,
+        date: chosenDate
       });
-      const msg = volunteerCard.querySelector('#volunteer-msg');
       if (result.error) {
         msg.className = 'form-message error';
         msg.textContent = result.error;

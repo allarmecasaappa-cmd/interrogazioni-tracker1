@@ -492,7 +492,17 @@ const DB = (() => {
   function getAbsences() { return (_cache || _defaultCache()).absences; }
 
   async function addAbsence(entry) {
-    const { data, error } = await _client
+    const data = _cache || _defaultCache();
+    // Validation: student cannot be absent if they have an interrogation on this day
+    if (data.interrogations.some(i => i.studentId === entry.studentId && i.date === entry.date)) {
+      return { error: 'Impossibile segnare assente: lo studente ha un voto o interrogazione registrata in questa data.' };
+    }
+    // Validation: no duplicates
+    if (data.absences.some(a => a.studentId === entry.studentId && a.date === entry.date && a.subjectId === (entry.subjectId ?? null))) {
+      return { error: 'Assenza già registrata per questa data.' };
+    }
+
+    const { data: row, error } = await _client
       .from('absences')
       .insert({
         student_id: entry.studentId,
@@ -501,7 +511,7 @@ const DB = (() => {
         class_id: _currentClassId
       }).select().single();
     if (error) return { error: error.message };
-    const mapped = mapAbsence(data);
+    const mapped = mapAbsence(row);
     _cache.absences.push(mapped);
     return mapped;
   }
@@ -517,18 +527,27 @@ const DB = (() => {
 
   async function addVolunteer(entry) {
     const data = _cache || _defaultCache();
+    
+    // Validation: is subject scheduled on this day of week?
+    const d = new Date(entry.date + 'T00:00:00');
+    const dayOfWeek = d.getDay() === 0 ? 7 : d.getDay();
+    const isScheduled = data.schedule.some(s => s.subjectId === entry.subjectId && s.dayOfWeek === dayOfWeek);
+    if (!isScheduled) {
+      return { error: 'La materia selezionata non è in orario per questo giorno della settimana.' };
+    }
+
     // Validation: already interrogated
     if (data.interrogations.find(i =>
       i.studentId === entry.studentId &&
       i.subjectId === entry.subjectId &&
       i.date === entry.date
-    )) return { error: 'Already interrogated in this subject on this date' };
+    )) return { error: 'Già interrogato in questa materia in questa data.' };
     // Duplicate volunteer
     if (data.volunteers.find(v =>
       v.studentId === entry.studentId &&
       v.subjectId === entry.subjectId &&
       v.date === entry.date
-    )) return { error: 'Already volunteered for this subject on this date' };
+    )) return { error: 'Già registrato come volontario per questa materia in questa data.' };
 
     const { data: row, error } = await _client
       .from('volunteers')
