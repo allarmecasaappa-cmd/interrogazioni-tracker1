@@ -226,7 +226,7 @@ const App = (() => {
   function renderStudentSelector(container, onChange) {
     try {
       const session = DB.getSession();
-      const students = DB.getStudents();
+      const students = RiskCalculator.sortBySurname(DB.getStudents());
 
       if (students.length === 0) {
         container.innerHTML = `
@@ -767,7 +767,7 @@ const App = (() => {
           <div class="form-group">
             <label>Studente</label>
             <select name="studentId" required>
-              ${DB.getStudents().map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
+              ${RiskCalculator.sortBySurname(DB.getStudents()).map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
             </select>
           </div>
         ` : ''}
@@ -829,7 +829,7 @@ const App = (() => {
           <div class="form-group">
             <label>Studente</label>
             <select name="studentId" required style="margin-bottom: 8px;">
-              ${DB.getStudents().map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
+              ${RiskCalculator.sortBySurname(DB.getStudents()).map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
             </select>
           </div>
         ` : ''}
@@ -889,7 +889,7 @@ const App = (() => {
           <div class="form-group">
             <label>Studente</label>
             <select name="studentId" required style="margin-bottom: 8px;">
-              ${DB.getStudents().map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
+              ${RiskCalculator.sortBySurname(DB.getStudents()).map(s => `<option value="${s.id}" ${s.id === currentStudentId ? 'selected' : ''}>${s.name}</option>`).join('')}
             </select>
           </div>
         ` : ''}
@@ -1707,7 +1707,7 @@ const App = (() => {
 
   function renderAdminInterrogations(container) {
     const interrogations = DB.getInterrogations().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 100);
-    const students = DB.getStudents();
+    const students = RiskCalculator.sortBySurname(DB.getStudents());
     const subjects = DB.getSubjects();
 
     container.innerHTML = `
@@ -1772,7 +1772,7 @@ const App = (() => {
 
   function renderAdminAbsences(container) {
     const absences = DB.getAbsences().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 100);
-    const students = DB.getStudents();
+    const students = RiskCalculator.sortBySurname(DB.getStudents());
     const subjects = DB.getSubjects();
 
     container.innerHTML = `
@@ -1825,7 +1825,7 @@ const App = (() => {
 
   function renderAdminVolunteers(container) {
     const volunteers = DB.getVolunteers().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 100);
-    const students = DB.getStudents();
+    const students = RiskCalculator.sortBySurname(DB.getStudents());
     const subjects = DB.getSubjects();
 
     container.innerHTML = `
