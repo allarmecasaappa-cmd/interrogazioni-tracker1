@@ -228,6 +228,12 @@ const App = (() => {
       const session = DB.getSession();
       const students = RiskCalculator.sortBySurname(DB.getStudents());
 
+      const roleLabels = { admin: 'Admin', class_admin: 'Capoclasse', student: 'Studente' };
+      const roleLabel = roleLabels[session.user.role] || 'Utente';
+      const roleBg = session.user.role === 'admin' ? 'rgba(74, 144, 217, 0.15)' : (session.user.role === 'class_admin' ? 'rgba(52, 199, 89, 0.15)' : 'rgba(142, 153, 164, 0.15)');
+      const roleColor = session.user.role === 'admin' ? '#3A78C4' : (session.user.role === 'class_admin' ? '#34C759' : '#8E99A4');
+      const sessionInitials = RiskCalculator.getInitials(session.user.name);
+
       if (students.length === 0) {
         container.innerHTML = `
           <div class="empty-state">
@@ -268,7 +274,13 @@ const App = (() => {
             ${selectedDate === DB.formatDateISO() ? '<span class="today-badge">OGGI</span>' : ''}
             ${selectedDate === RiskCalculator.getNextSchoolDay(DB.formatDateISO()) ? '<span class="today-badge" style="background: rgba(156, 39, 176, 0.15); color: #9C27B0; border-color: rgba(156, 39, 176, 0.3);">PROSSIMO</span>' : ''}
           </div>
-          <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci" style="margin-left: auto;">🚪</button>
+          <div class="user-logout-group" style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+            <div class="session-user-badge" style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; line-height: 1.2;">
+              <span style="font-size: 11px; font-weight: 700; color: #1A1A2E;">${sessionInitials}</span>
+              <span style="font-size: 8px; font-weight: 800; color: ${roleColor}; text-transform: uppercase; background: ${roleBg}; padding: 2px 5px; border-radius: 4px; letter-spacing: 0.3px;">${roleLabel}</span>
+            </div>
+            <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci" style="margin: 0; padding: 6px 8px; height: 32px; display: flex; align-items: center; justify-content: center;">🚪</button>
+          </div>
         `;
         container.appendChild(header);
 
@@ -305,7 +317,13 @@ const App = (() => {
             ${selectedDate === RiskCalculator.getNextSchoolDay(DB.formatDateISO()) ? '<span class="today-badge" style="background: rgba(156, 39, 176, 0.15); color: #9C27B0; border-color: rgba(156, 39, 176, 0.3);">PROSSIMO</span>' : ''}
           </div>
         </div>
-        <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci">🚪</button>
+        <div class="user-logout-group" style="display: flex; align-items: center; gap: 8px; margin-left: auto;">
+          <div class="session-user-badge" style="display: flex; flex-direction: column; align-items: flex-end; justify-content: center; line-height: 1.2;">
+            <span style="font-size: 11px; font-weight: 700; color: #1A1A2E;">${sessionInitials}</span>
+            <span style="font-size: 8px; font-weight: 800; color: ${roleColor}; text-transform: uppercase; background: ${roleBg}; padding: 2px 5px; border-radius: 4px; letter-spacing: 0.3px;">${roleLabel}</span>
+          </div>
+          <button class="btn btn-secondary btn-sm btn-logout-icon-only" title="Esci" style="margin: 0; padding: 6px 8px; height: 32px; display: flex; align-items: center; justify-content: center;">🚪</button>
+        </div>
       `;
       container.appendChild(header);
 
