@@ -82,18 +82,47 @@ const DB = (() => {
 
   // ---- DB init & load ----
 
+  function isOnline() {
+    return navigator.onLine;
+  }
+
   async function init(url, key, classId = 'Classe-1') {
     _client = supabase.createClient(url, key);
     _currentClassId = classId;
-    await _loadAll();
+
+    // Load data from cache immediately if present (low storage footprint)
+    const cachedData = localStorage.getItem('app_cache_data_' + _currentClassId);
+    if (cachedData) {
+      try {
+        _cache = JSON.parse(cachedData);
+        console.log("DB Cache loaded for class:", _currentClassId);
+      } catch (e) {
+        console.error("Error parsing cache:", e);
+      }
+    }
+
+    if (isOnline()) {
+      if (!_cache) {
+        // If no cache is present, load synchronously
+        await _loadAll();
+      } else {
+        // Load in background silently to speed up app load
+        _loadAll().catch(err => console.error("Background sync failed:", err));
+      }
+    } else {
+      if (!_cache) {
+        _cache = _defaultCache();
+      }
+    }
   }
 
   async function _loadAll() {
-    const [
-      classesRes, classCfgRes, studRes, subjRes, teachRes, schedRes,
-      interrogRes, absRes, volRes, vacRes, avgRes
-    ] = await Promise.all([
-      _client.from('classes').select('*'),
+    const session = getSession();
+    const isStudent = session.isLoggedIn && session.user.role === 'student';
+
+    // Build the query promises: Students do NOT request the classes list.
+    const promises = [
+      isStudent ? Promise.resolve({ data: [{ id: _currentClassId }] }) : _client.from('classes').select('*'),
       _client.from('classes').select('*').eq('id', _currentClassId).single(),
       _client.from('students').select('*').eq('class_id', _currentClassId),
       _client.from('subjects').select('*').eq('class_id', _currentClassId),
@@ -104,7 +133,12 @@ const DB = (() => {
       _client.from('volunteers').select('*').eq('class_id', _currentClassId),
       _client.from('vacations').select('*').eq('class_id', _currentClassId),
       _client.from('subject_avg').select('*').eq('class_id', _currentClassId)
-    ]);
+    ];
+
+    const [
+      classesRes, classCfgRes, studRes, subjRes, teachRes, schedRes,
+      interrogRes, absRes, volRes, vacRes, avgRes
+    ] = await Promise.all(promises);
 
     const cfg = classCfgRes.data || {};
     const avgMap = {};
@@ -127,6 +161,15 @@ const DB = (() => {
         avgInterrogationsPerSubjectPerDay: avgMap
       }
     };
+
+    try {
+      localStorage.setItem('app_cache_data_' + _currentClassId, JSON.stringify(_cache));
+    } catch (e) {
+      console.error("Failed to save localStorage cache:", e);
+    }
+
+    // Emit event to notify app.js that new data has been synchronized and loaded
+    window.dispatchEvent(new CustomEvent('db-updated'));
   }
 
   // Synchronous read of the full cache (used by risk.js)
@@ -140,7 +183,17 @@ const DB = (() => {
 
   async function setClassId(classId) {
     _currentClassId = classId;
-    await _loadAll();
+    if (isOnline()) {
+      await _loadAll();
+    } else {
+      const cachedData = localStorage.getItem('app_cache_data_' + _currentClassId);
+      if (cachedData) {
+        _cache = JSON.parse(cachedData);
+      } else {
+        _cache = _defaultCache();
+      }
+      window.dispatchEvent(new CustomEvent('db-updated'));
+    }
   }
 
   // ---- Auth & Session ----
@@ -674,7 +727,7 @@ const DB = (() => {
     }
   }
 
-  return {
+  const api = {
     formatDateISO, load, init, setClassId, getCurrentClassId,
     getStudents, getStudent, addStudent, updateStudent, deleteStudent,
     getSubjects, getSubject, addSubject, updateSubject, deleteSubject,
@@ -689,4 +742,31 @@ const DB = (() => {
     getClasses, addClass, deleteClass,
     getSession, login, logout, getAdminLogins
   };
+
+  // Wrap all async writing functions to check for offline mode and prevent database modification
+  const writeMethods = [
+    'addStudent', 'updateStudent', 'deleteStudent',
+    'addSubject', 'updateSubject', 'deleteSubject',
+    'addTeacher', 'updateTeacher', 'deleteTeacher',
+    'addScheduleEntry', 'deleteScheduleEntry', 'clearSchedule',
+    'addInterrogation', 'updateInterrogation', 'deleteInterrogation',
+    'addAbsence', 'deleteAbsence',
+    'addVolunteer', 'deleteVolunteer',
+    'addVacation', 'deleteVacation',
+    'setAvgInterrogations', 'setSchoolDays', 'setCycleConfig',
+    'resetAll', 'resetSelective',
+    'addClass', 'deleteClass'
+  ];
+
+  writeMethods.forEach(method => {
+    const original = api[method];
+    api[method] = async function(...args) {
+      if (!isOnline()) {
+        return { error: "Impossibile salvare: sei offline. L'evento non è stato registrato." };
+      }
+      return original.apply(this, args);
+    };
+  });
+
+  return api;
 })();

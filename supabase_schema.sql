@@ -105,3 +105,13 @@ CREATE POLICY "public_all" ON volunteers FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_all" ON vacations FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_all" ON config FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "public_all" ON subject_avg FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================================
+-- Explicit API Grants for Supabase Data API (May 2026 update)
+-- ============================================================
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+
+-- Automatically grant permissions on tables and sequences created in the future
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO anon, authenticated, service_role;

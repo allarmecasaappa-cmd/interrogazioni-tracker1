@@ -42,6 +42,64 @@ const App = (() => {
       currentStudentId = session.user.role === 'student' ? session.user.id : (parseInt(localStorage.getItem('selectedStudentId')) || null);
     }
 
+    // --- Dark Theme Init & Toggle Wiring ---
+    const savedTheme = localStorage.getItem('app_theme') || 'light';
+    if (savedTheme === 'dark') {
+      document.body.classList.add('dark-theme');
+      updateThemeTogglesUI(true);
+    } else {
+      document.body.classList.remove('dark-theme');
+      updateThemeTogglesUI(false);
+    }
+
+    const toggleDesktop = document.getElementById('theme-toggle-desktop');
+    const toggleMobile = document.getElementById('theme-toggle-mobile');
+
+    function toggleTheme() {
+      const isDark = document.body.classList.toggle('dark-theme');
+      localStorage.setItem('app_theme', isDark ? 'dark' : 'light');
+      updateThemeTogglesUI(isDark);
+    }
+
+    function updateThemeTogglesUI(isDark) {
+      document.querySelectorAll('.theme-toggle-btn, .theme-toggle-btn-mobile').forEach(btn => {
+        const sun = btn.querySelector('.sun-icon');
+        const moon = btn.querySelector('.moon-icon');
+        const label = btn.querySelector('span');
+        if (isDark) {
+          if (sun) sun.style.display = 'inline-block';
+          if (moon) moon.style.display = 'none';
+          if (label) label.textContent = 'Tema Chiaro';
+        } else {
+          if (sun) sun.style.display = 'none';
+          if (moon) moon.style.display = 'inline-block';
+          if (label) label.textContent = 'Tema Scuro';
+        }
+      });
+    }
+
+    if (toggleDesktop) toggleDesktop.addEventListener('click', toggleTheme);
+    if (toggleMobile) toggleMobile.addEventListener('click', toggleTheme);
+
+    // --- Offline Mode Handling ---
+    const banner = document.getElementById('offline-banner');
+    function updateOnlineStatus() {
+      if (navigator.onLine) {
+        if (banner) banner.style.display = 'none';
+      } else {
+        if (banner) banner.style.display = 'block';
+      }
+    }
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus(); // Check on start
+
+    // --- DB Silent Update Re-render ---
+    window.addEventListener('db-updated', () => {
+      console.log("DB synchronized. Refreshing current view...");
+      handleRoute();
+    });
+
     window.addEventListener('hashchange', handleRoute);
     handleRoute();
   }

@@ -2438,3 +2438,181 @@ body {
   }
 }
 
+/* ============================================================
+   Offline Banner & Theme Toggles
+   ============================================================ */
+.offline-banner {
+  background-color: #FF9500;
+  color: #FFFFFF;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  z-index: 9999;
+  width: 100%;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.theme-toggle-btn-mobile {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+  margin-left: auto;
+  color: #1A1A2E;
+  display: none; /* Shown on mobile only */
+  align-items: center;
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .theme-toggle-btn-mobile {
+    display: flex;
+  }
+  .theme-toggle-btn {
+    display: flex;
+  }
+}
+
+/* ============================================================
+   Dark Theme (Dark Mode Overrides)
+   ============================================================ */
+body.dark-theme {
+  background: #121214;
+  color: #ECEFF4;
+}
+
+body.dark-theme .sidebar {
+  background: #1C1C1E;
+  border-right: 1px solid #2E3440;
+}
+
+body.dark-theme .sidebar-logo,
+body.dark-theme .mobile-title,
+body.dark-theme .sidebar-logo span {
+  color: #ECEFF4;
+}
+
+body.dark-theme .nav-item {
+  color: #D8DEE9;
+}
+
+body.dark-theme .nav-item:hover {
+  background: #2E3440;
+  color: #ECEFF4;
+}
+
+body.dark-theme .nav-item.active {
+  background: rgba(94, 129, 172, 0.25);
+  color: #88C0D0;
+}
+
+body.dark-theme .mobile-header {
+  background: #1C1C1E;
+  border-bottom: 1px solid #2E3440;
+}
+
+body.dark-theme .hamburger svg,
+body.dark-theme .theme-toggle-btn-mobile {
+  color: #ECEFF4;
+}
+
+body.dark-theme .student-header,
+body.dark-theme .toggle-bar,
+body.dark-theme .risk-card,
+body.dark-theme .week-card,
+body.dark-theme .card,
+body.dark-theme .week-navigation-header {
+  background: #1C1C1E !important;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+  color: #ECEFF4 !important;
+}
+
+body.dark-theme .student-select,
+body.dark-theme .date-input,
+body.dark-theme .class-selector,
+body.dark-theme select,
+body.dark-theme input {
+  background: #2E3440 !important;
+  border-color: #3B4252 !important;
+  color: #ECEFF4 !important;
+}
+
+body.dark-theme .admin-header-class {
+  color: #88C0D0;
+  background: rgba(94, 129, 172, 0.25);
+}
+
+body.dark-theme .risk-subject-name,
+body.dark-theme .risk-percentage,
+body.dark-theme .week-subject,
+body.dark-theme .week-risk,
+body.dark-theme .risk-big-number,
+body.dark-theme .stat-value,
+body.dark-theme h2,
+body.dark-theme h3 {
+  color: #ECEFF4 !important;
+}
+
+body.dark-theme .risk-teacher-name,
+body.dark-theme .risk-explanation,
+body.dark-theme .stat-label,
+body.dark-theme .week-day-header,
+body.dark-theme .week-date,
+body.dark-theme .risk-detail-teacher,
+body.dark-theme .expandable-header h3,
+body.dark-theme .history-date,
+body.dark-theme .form-hint,
+body.dark-theme .history-item {
+  color: #9EABB6 !important;
+}
+
+body.dark-theme .risk-bar-container,
+body.dark-theme .stat-bar-container {
+  background: #2E3440 !important;
+}
+
+body.dark-theme .week-day-header.today {
+  color: #88C0D0 !important;
+  background: rgba(94, 129, 172, 0.25) !important;
+  border-color: #5E81AC !important;
+}
+
+body.dark-theme .nav-divider {
+  background: #2E3440;
+}
+
+body.dark-theme .history-item {
+  border-bottom: 1px solid #2E3440;
+}
+
+body.dark-theme .login-card {
+  background: #1C1C1E;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+body.dark-theme .form-group label {
+  color: #D8DEE9;
+}
+
+body.dark-theme .empty-state p {
+  color: #9EABB6;
+}
+
+body.dark-theme .btn-secondary {
+  background: #2E3440;
+  color: #ECEFF4;
+  border-color: #3B4252;
+}
+
+body.dark-theme .btn-secondary:hover {
+  background: #3B4252;
+}
+
+body.dark-theme .class-stat-row {
+  border-bottom: 1px solid #2E3440;
+}
+
+
