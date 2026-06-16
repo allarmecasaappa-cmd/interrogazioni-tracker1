@@ -1,16 +1,28 @@
-name: Supabase Keep Alive
+name: Keep Supabase Alive
 
 on:
   schedule:
-    - cron: '0 0 */3 * *' # Ogni 3 giorni a mezzanotte
-  workflow_dispatch: # Permette l'avvio manuale dal pannello GitHub Actions
+    - cron: '0 12 */3 * *'
+  workflow_dispatch:
 
 jobs:
-  ping_supabase:
+  ping-supabase:
     runs-on: ubuntu-latest
     steps:
-      - name: Query Supabase
+      - name: Send keep-alive request to Supabase
         run: |
-          curl -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/classes?select=*&limit=1" \
-          -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-          -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}"
+          if [ -z "${{ secrets.SUPABASE_URL }}" ] || [ -z "${{ secrets.SUPABASE_ANON_KEY }}" ]; then
+            echo "Errore: SUPABASE_URL o SUPABASE_ANON_KEY non impostati nei Secrets!"
+            exit 1
+          fi
+          
+          response=$(curl -s -o /dev/null -w "%{http_code}" -X GET "${{ secrets.SUPABASE_URL }}/rest/v1/absences?limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+          
+          echo "Risposta HTTP: $response"
+          if [ "$response" -eq 200 ] || [ "$response" -eq 204 ] || [ "$response" -eq 300 ] || [ "$response" -eq 401 ] || [ "$response" -eq 403 ]; then
+            echo "Ping riuscito! Il database è attivo."
+          else
+            echo "Errore o codice imprevisto ($response)."
+          fi
